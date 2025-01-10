@@ -3,7 +3,7 @@
 <div align="center">
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.1-brightgreen.svg?style=flat-square)](https://github.com/your-repo/ccproxy)
+[![Version](https://img.shields.io/badge/version-V3-brightgreen.svg?style=flat-square)](https://github.com/your-repo/ccproxy)
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D7.0-orange.svg?style=flat-square&logo=php)](https://php.net)
 [![MySQL Version](https://img.shields.io/badge/mysql-%3E%3D5.7-blue.svg?style=flat-square&logo=mysql)](https://www.mysql.com)
 [![GitHub stars](https://img.shields.io/github/stars/your-repo/ccproxy?style=flat-square)](https://github.com/your-repo/ccproxy/stargazers)
