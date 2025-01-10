@@ -1,0 +1,262 @@
+body {
+    background: #f5f7fa;
+    min-height: 100vh;
+    padding-bottom: 80px;
+}
+
+.layui-card {
+    margin: 15px;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.layui-card-body {
+    padding: 20px;
+}
+
+.layui-tab-title {
+    position: relative;
+    border-bottom: none;
+    margin-bottom: 25px;
+}
+
+.layui-tab-title:after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 1px;
+    background: #eee;
+    z-index: 1;
+}
+
+.layui-tab-title .layui-this {
+    color: #009688;
+    font-weight: 500;
+}
+
+.layui-tab-title .layui-this:after {
+    height: 3px;
+    background: #009688;
+    border-radius: 3px;
+    z-index: 2;
+}
+
+.setting-card {
+    margin-bottom: 25px;
+    border-radius: 8px;
+    background-color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    padding: 25px;
+    transition: all 0.3s ease;
+}
+
+.setting-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    transform: translateY(-2px);
+}
+
+.setting-card .card-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+}
+
+.setting-card .card-title:before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 16px;
+    background: #009688;
+    border-radius: 2px;
+    margin-right: 10px;
+}
+
+.setting-card .layui-form-item {
+    margin-bottom: 25px;
+}
+
+.setting-card .layui-form-label {
+    width: 120px;
+    padding: 9px 15px;
+    font-weight: 500;
+    color: #333;
+}
+
+.setting-card .layui-input-block {
+    margin-left: 150px;
+}
+
+.setting-card .layui-form-mid {
+    color: #999;
+    font-size: 13px;
+    margin-top: 8px;
+}
+
+.setting-card .layui-input {
+    border-radius: 4px;
+    padding: 8px 12px;
+    height: 38px;
+    line-height: 38px;
+    transition: all 0.3s ease;
+}
+
+.setting-card .layui-input:focus {
+    border-color: #009688;
+    box-shadow: 0 0 0 2px rgba(0,150,136,.1);
+}
+
+.setting-card .layui-textarea {
+    min-height: 120px;
+    border-radius: 4px;
+    padding: 12px;
+    transition: all 0.3s ease;
+}
+
+.setting-card .layui-textarea:focus {
+    border-color: #009688;
+    box-shadow: 0 0 0 2px rgba(0,150,136,.1);
+}
+
+.setting-card .layui-form-switch {
+    border-radius: 100px;
+    background-color: #e6e6e6;
+    border: 1px solid #e6e6e6;
+    width: 58px;
+    margin-top: 0;
+    transition: all 0.3s ease;
+}
+
+.layui-form-switch em {
+    color: #fff;
+    font-size: 12px;
+    margin-left: 5px;
+    margin-right: 18px;
+}
+
+.layui-form-switch i {
+    width: 20px;
+    height: 20px;
+    border-radius: 100px;
+    background-color: #fff;
+    top: 1px;
+    left: 2px;
+    transition: all 0.3s ease;
+}
+
+.layui-form-onswitch {
+    border-color: #009688;
+    background-color: #009688;
+}
+
+.layui-form-onswitch em {
+    margin-left: 18px;
+    margin-right: 5px;
+}
+
+.layui-form-onswitch i {
+    left: auto;
+    right: 2px;
+    background-color: #fff;
+}
+
+.setting-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: #fff;
+    padding: 15px;
+    text-align: center;
+    box-shadow: 0 -2px 8px rgba(0,0,0,.08);
+    z-index: 999;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.setting-footer .layui-btn {
+    height: 40px;
+    line-height: 40px;
+    padding: 0 35px;
+    font-size: 14px;
+    margin: 0 8px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.setting-footer .layui-btn-normal {
+    background: #009688;
+    box-shadow: 0 2px 6px rgba(0,150,136,.2);
+}
+
+.setting-footer .layui-btn-normal:hover {
+    background: #008478;
+    box-shadow: 0 4px 12px rgba(0,150,136,.3);
+    transform: translateY(-1px);
+}
+
+.setting-footer .layui-btn-primary {
+    border: 1px solid #e6e6e6;
+    color: #666;
+}
+
+.setting-footer .layui-btn-primary:hover {
+    border-color: #009688;
+    color: #009688;
+}
+
+/* 输入框组合样式 */
+.input-group {
+    margin-top: 10px;
+    position: relative;
+}
+
+.input-group .layui-input {
+    padding-right: 100px;
+}
+
+.input-group .input-group-addon {
+    position: absolute;
+    right: 1px;
+    top: 1px;
+    bottom: 1px;
+    padding: 0 10px;
+    background: #f5f5f5;
+    border-radius: 0 4px 4px 0;
+    line-height: 36px;
+    color: #999;
+}
+
+/* 必填标记样式 */
+.layui-badge-dot {
+    background-color: #ff5722;
+    margin-left: 5px;
+}
+
+/* 卡片内容区域动画 */
+.setting-card .card-content {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: fadeInUp 0.5s ease forwards;
+}
+
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.disabled-input {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.disabled-input input {
+    background-color: #f5f5f5;
+}
