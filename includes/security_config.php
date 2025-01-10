@@ -70,7 +70,7 @@ function getSecureFileName($originalName) {
 
 // 密码安全配置
 define('PASSWORD_MIN_LENGTH', 12);
-define('PASSWORD_HASH_ALGO', PASSWORD_ARGON2ID);
+define('PASSWORD_HASH_ALGO', PASSWORD_DEFAULT);
 define('PASSWORD_MAX_AGE', 90); // 密码有效期(天)
 define('PASSWORD_HISTORY_SIZE', 5); // 记住最近5个密码,防止重复使用
 

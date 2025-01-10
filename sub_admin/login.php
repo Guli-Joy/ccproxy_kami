@@ -73,7 +73,9 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 	exit(json_encode($json,JSON_UNESCAPED_UNICODE));
 }elseif(isset($_GET['logout'])){
 	// 清除所有session
-	session_start();
+	if (session_status() == PHP_SESSION_NONE) {
+		session_start();
+	}
 	$_SESSION = array();
 	session_destroy();
 	

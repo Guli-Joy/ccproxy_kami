@@ -107,12 +107,32 @@ switch ($act) {
         DB::query("START TRANSACTION");
 
         // 获取当前访问的域名或IP
-        $server_name = $_SERVER['SERVER_NAME'];
-        $server_port = $_SERVER['SERVER_PORT'];
-        $site_url = $server_port == '80' ? $server_name : $server_name . ':' . $server_port;
+        $server_name = '';
+        
+        // 优先使用 HTTP_X_FORWARDED_HOST (内网穿透场景)
+        if (!empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+            $server_name = $_SERVER['HTTP_X_FORWARDED_HOST'];
+        } 
+        // 其次使用 HTTP_HOST
+        else if (!empty($_SERVER['HTTP_HOST'])) {
+            $server_name = $_SERVER['HTTP_HOST'];
+        }
+        // 最后使用 SERVER_NAME
+        else if (!empty($_SERVER['SERVER_NAME'])) {
+            $server_name = $_SERVER['SERVER_NAME'];
+            $server_port = $_SERVER['SERVER_PORT'];
+            // 只有使用 SERVER_NAME 时才需要手动加端口
+            if ($server_port != '80' && $server_port != '443') {
+                $server_name .= ':' . $server_port;
+            }
+        }
+        
+        if (empty($server_name)) {
+            exit(json_encode(['code' => -1, 'msg' => '无法获取当前域名，请检查服务器配置'], JSON_UNESCAPED_UNICODE));
+        }
 
         // 替换SQL中的域名
-        $sql = str_replace('192.168.31.134:8882', $site_url, $sql);
+        $sql = str_replace('192.168.31.134:8882', $server_name, $sql);
 
         // 分割SQL语句
         $statements = [];

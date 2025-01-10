@@ -294,11 +294,9 @@ class SecurityFilter {
      */
     public static function hashPassword($password) {
         $options = [
-            'memory_cost' => 65536,  // 内存成本
-            'time_cost' => 4,        // 时间成本
-            'threads' => 3           // 线程数
+            'cost' => 12  // bcrypt的cost参数，12是推荐值
         ];
-        return password_hash($password, PASSWORD_ARGON2ID, $options);
+        return password_hash($password, PASSWORD_DEFAULT, $options);
     }
 
     /**
