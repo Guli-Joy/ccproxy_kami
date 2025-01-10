@@ -3,11 +3,11 @@
 <div align="center">
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-V3-brightgreen.svg?style=flat-square)](https://github.com/your-repo/ccproxy)
+[![Version](https://img.shields.io/badge/version-V3-brightgreen.svg?style=flat-square)](https://github.com/Guli-Joy/ccproxy_kami)
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D7.0-orange.svg?style=flat-square&logo=php)](https://php.net)
 [![MySQL Version](https://img.shields.io/badge/mysql-%3E%3D5.7-blue.svg?style=flat-square&logo=mysql)](https://www.mysql.com)
-[![GitHub stars](https://img.shields.io/github/stars/your-repo/ccproxy?style=flat-square)](https://github.com/your-repo/ccproxy/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/your-repo/ccproxy?style=flat-square)](https://github.com/your-repo/ccproxy/network)
+[![GitHub stars](https://img.shields.io/github/stars/Guli-Joy/ccproxy_kami?style=flat-square)](https://github.com/Guli-Joy/ccproxy_kami/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/Guli-Joy/ccproxy_kami?style=flat-square)](https://github.com/Guli-Joy/ccproxy_kami/network)
 
 <p align="center">
   <b>功能完整的代理服务器管理系统 | 多用户支持 | 安全可靠</b>
