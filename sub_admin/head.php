@@ -13,8 +13,11 @@ if (!($islogin == 1)) {
 	<link rel="stylesheet" href="../assets/layui/css/layui.css?v=20201111001" />
 	<link rel="stylesheet" type="text/css" href="css/admin.css" />
 	<link rel="stylesheet" type="text/css" href="css/theme.css" />
-	<title><?php echo $subconf['hostname'] . '后台管理'; ?></title>
 	<link rel="stylesheet" type="text/css" href="css/head.css" />
+	<link rel="stylesheet" type="text/css" href="css/mobile.css" />
+	<link rel="stylesheet" type="text/css" href="css/popup.css" />
+	<link rel="stylesheet" type="text/css" href="css/animation.css" />
+	<title><?php echo $subconf['hostname'] . '后台管理'; ?></title>
 </head>
 
 <body class="layui-layout-body">
@@ -28,12 +31,12 @@ if (!($islogin == 1)) {
 
 	<!-- 装饰元素容器 -->
 	<div class="decoration-container">
-		<div class="deco-crayon" style="top: 20px; right: 50px;"></div>
-		<div class="deco-star" style="top: 120px; left: 50px;"></div>
-		<div class="deco-circle" style="bottom: 80px; right: 100px;"></div>
-		<div class="deco-star" style="bottom: 150px; left: 80%;"></div>
-		<div class="deco-circle" style="top: 40%; right: 40px;"></div>
-		<div class="deco-star" style="top: 30%; left: 30px;"></div>
+		<div class="deco-crayon"></div>
+		<div class="deco-star"></div>
+		<div class="deco-circle"></div>
+		<div class="deco-star"></div>
+		<div class="deco-circle"></div>
+		<div class="deco-star"></div>
 	</div>
 
 	<!-- 动态背景 -->
@@ -55,7 +58,7 @@ if (!($islogin == 1)) {
 					</a>
 				</li>
 				<li class="layui-nav-item">
-					<a href="javascript:;" style="color:#33cabb;">
+					<a href="javascript:;">
 						<i class="layui-icon layui-icon-username"></i>
 						<span id="username"><?php echo $subconf['username']; ?></span>
 					</a>
@@ -80,7 +83,7 @@ if (!($islogin == 1)) {
 		<div class="layui-side custom-admin">
 			<div class="layui-side-scroll">
 				<div class="custom-logo">
-					<h1 id="logos" data-text="故离">故离</h1>
+					<h1 id="logos">故离</h1>
 					<span id="logowz">管理系统</span>
 				</div>
 				<ul id="Nav" class="layui-nav layui-nav-tree" lay-filter="tabnav">
@@ -149,9 +152,11 @@ if (!($islogin == 1)) {
 	<script src="../assets/layui/layui.js"></script>
 	<script src="../assets/js/index.js"></script>
 	<script>
-		layui.use(['jquery', 'element'], function() {
+		layui.use(['jquery', 'element', 'form', 'layer'], function() {
 			var $ = layui.$,
-				element = layui.element;
+				element = layui.element,
+				form = layui.form,
+				layer = layui.layer;
 			
 			// 设置默认收起状态
 			if(localStorage.getItem('menuShrink') === null) {
@@ -200,38 +205,29 @@ if (!($islogin == 1)) {
 			// 菜单收缩点击事件
 			$('.slide-sidebar').on('click', function() {
 				var admin = $('.layui-layout-admin');
-				var isShrink = admin.hasClass('side-shrink');
-				
-				// 添加过渡动画类
-				admin.addClass('transitioning');
-				
-				if(isShrink) {
-					admin.removeClass('side-shrink');
-					localStorage.setItem('menuShrink', 'false');
-				} else {
-					admin.addClass('side-shrink');
-					localStorage.setItem('menuShrink', 'true');
-				}
-				
-				// 移除过渡动画类
-				setTimeout(function() {
-					admin.removeClass('transitioning');
-				}, 300);
+				admin.toggleClass('side-shrink');
+				localStorage.setItem('menuShrink', admin.hasClass('side-shrink'));
 			});
 
 			// 移动端遮罩层点击关闭
 			$('.mobile-mask').on('click', function() {
-				$('.layui-layout-admin').removeClass('side-shrink');
-				localStorage.setItem('menuShrink', 'false');
+				$('.layui-layout-admin').addClass('side-shrink');
+				localStorage.setItem('menuShrink', 'true');
 			});
 
 			// 窗口大小改变时的处理
 			$(window).resize(function() {
 				if($(window).width() <= 768) {
-					$('.layui-layout-admin').removeClass('side-shrink');
-					localStorage.setItem('menuShrink', 'false');
+					$('.layui-layout-admin').addClass('side-shrink');
+					localStorage.setItem('menuShrink', 'true');
 				}
 			});
+
+			// 初始化时处理移动端
+			if($(window).width() <= 768) {
+				$('.layui-layout-admin').addClass('side-shrink');
+				localStorage.setItem('menuShrink', 'true');
+			}
 
 			// 子菜单动画
 			$('.layui-nav-item').hover(
@@ -448,6 +444,203 @@ if (!($islogin == 1)) {
 					.queue(function() {
 						$(this).css('opacity', '1').dequeue();
 					});
+			});
+
+			// 退出登录处理
+			$('#quit').on('click', function() {
+				layer.confirm('<div class="logout-confirm">' +
+					'<div class="logout-icon"><i class="layui-icon layui-icon-logout"></i></div>' +
+					'<div class="logout-title">确定要退出登录吗？</div>' +
+					'<div class="logout-subtitle">期待您的下次冒险 (｡◕‿◕｡)</div>' +
+					'</div>', {
+					title: false,
+					closeBtn: 0,
+					btn: ['确定退出', '再想想'],
+					skin: 'logout-dialog',
+					anim: 2,
+					btnAlign: 'c',
+					area: ['340px', 'auto']
+				}, function() {
+					$.ajax({
+						url: 'login.php?logout=1',
+						type: 'GET',
+						dataType: 'json',
+						success: function(res) {
+							if(res.code == '0') {
+								// 清除所有cookie
+								document.cookie.split(";").forEach(function(c) { 
+									document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+								});
+								// 清除localStorage
+								localStorage.clear();
+								// 清除sessionStorage
+								sessionStorage.clear();
+								
+								// 显示退出成功动画
+								layer.msg('<div style="text-align:center;">' +
+									'<i class="layui-icon layui-icon-ok" style="font-size:30px;color:#52c41a;display:block;margin-bottom:10px;"></i>' +
+									'<div style="color:#333;font-size:16px;">退出成功</div>' +
+									'<div style="color:#666;font-size:12px;margin-top:5px;">下次再见 (●\'◡\'●)</div>' +
+									'</div>', {
+									time: 1500,
+									anim: 2,
+									shade: 0.2,
+									shadeClose: true
+								}, function() {
+									window.location.href = 'login.php';
+								});
+							} else {
+								layer.msg('退出失败，请重试', {
+									icon: 2,
+									anim: 6,
+									time: 2000
+								});
+							}
+						},
+						error: function() {
+							layer.msg('网络错误，请重试', {
+									icon: 2,
+									anim: 6,
+									time: 2000
+							});
+						}
+					});
+				});
+			});
+
+			// 修改密码点击事件
+			$('#update_password').off('click').on('click', function(e) {
+				e.preventDefault();
+				e.stopPropagation();
+				
+				// 根据屏幕宽度设置弹窗大小
+				var area = $(window).width() <= 768 ? ['90%', 'auto'] : ['420px', 'auto'];
+				var offset = $(window).width() <= 768 ? '10%' : '20%';
+				
+				layer.open({
+					type: 1,
+					title: false,
+					closeBtn: 2,
+					shadeClose: true,
+					skin: 'password-popup',
+					area: area,
+					offset: offset,
+					anim: 2,
+					isOutAnim: true,
+					content: `
+						<div class="password-container layui-form" lay-filter="password-form">
+							<!-- 装饰元素 -->
+							<div class="deco-1"></div>
+							<div class="deco-2"></div>
+							<div class="deco-3"></div>
+
+							<!-- 表单头部 -->
+							<div class="form-header">
+								<div class="form-title">修改密码</div>
+								<div class="form-subtitle">为了账号安全，请谨慎操作 (｡◕‿◕｡)</div>
+							</div>
+
+							<!-- 表单内容 -->
+							<div class="layui-form-item">
+								<label class="layui-form-label">旧密码<span class="layui-must">*</span></label>
+								<div class="layui-input-block">
+									<input type="password" name="out_password" class="layui-input" lay-verify="required" placeholder="请输入当前密码">
+									<i class="layui-icon layui-icon-password input-icon"></i>
+								</div>
+							</div>
+							<div class="layui-form-item">
+								<label class="layui-form-label">新密码<span class="layui-must">*</span></label>
+								<div class="layui-input-block">
+									<input type="password" name="password" class="layui-input" lay-verify="required" placeholder="请输入新密码">
+									<i class="layui-icon layui-icon-password input-icon"></i>
+								</div>
+							</div>
+							<div class="layui-form-item">
+								<label class="layui-form-label">确认新密码<span class="layui-must">*</span></label>
+								<div class="layui-input-block">
+									<input type="password" name="confirm_password" class="layui-input" lay-verify="required" placeholder="请再次输入新密码">
+									<i class="layui-icon layui-icon-password input-icon"></i>
+								</div>
+							</div>
+
+							<!-- 提交按钮 -->
+							<div class="btn-container">
+								<button class="layui-btn" lay-submit lay-filter="submit-password">
+									<i class="layui-icon layui-icon-ok"></i> 确认修改
+								</button>
+							</div>
+						</div>
+					`,
+					success: function(layero, index) {
+						// 重新渲染表单
+						form.render(null, 'password-form');
+						
+						// 监听表单提交
+						form.on('submit(submit-password)', function(data) {
+							$.ajax({
+								url: "ajax.php?act=updatepwd",
+								type: "POST",
+								dataType: "json",
+								data: data.field,
+								beforeSend: function() {
+									layer.msg("正在提交", {
+										icon: 16,
+										shade: 0.05,
+										time: false
+									});
+								},
+								success: function(data) {
+									if (data.code == "1") {
+										layer.closeAll();
+										layer.msg(data.msg, {
+											icon: 1,
+											time: 1500
+										}, function() {
+											// 清除所有cookie
+											document.cookie.split(";").forEach(function(c) { 
+												document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+											});
+											// 清除localStorage
+											localStorage.clear();
+											// 清除sessionStorage
+											sessionStorage.clear();
+											// 跳转到登录页
+											window.location.href = 'login.php';
+										});
+									} else if(data.code == "-1") {
+										layer.msg(data.msg, {
+											icon: 5
+										});
+									} else if(data.code == "-2") {
+										layer.msg(data.msg, {
+											icon: 5
+										});
+									} else if(data.code == "-3") {
+										layer.msg(data.msg, {
+											icon: 5
+										});
+									} else {
+										layer.msg("未知错误", {
+											icon: 5
+										});
+									}
+								},
+								error: function(data) {
+									console.log(data);
+									layer.msg(data.responseText, {
+										icon: 5
+									});
+								}
+							});
+							return false;
+						});
+					},
+					end: function() {
+						layer.closeAll('loading');
+					}
+				});
+				
+				return false;
 			});
 		});
 	</script>

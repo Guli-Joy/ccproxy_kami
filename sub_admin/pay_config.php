@@ -89,7 +89,9 @@ if (!$row) {
 
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>支付配置</title>
+    <link rel="stylesheet" type="text/css" href="css/pay_config.css" />
     <?php include("foot.php"); ?>
 </head>
 
@@ -126,8 +128,6 @@ if (!$row) {
                             </div>
                         </div>
 
-                        
-
                         <div class="layui-form-item">
                             <label class="layui-form-label">接口状态<span class="layui-must">*</span></label>
                             <div class="layui-input-block">
@@ -146,8 +146,8 @@ if (!$row) {
 
                         <div class="layui-form-item">
                             <div class="layui-input-block">
-                                <button class="layui-btn layui-btn-normal layui-btn-sm" lay-submit lay-filter="submit">保存设置</button>
-                                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" lay-submit lay-filter="reset">重置</button>
+                                <button class="layui-btn layui-btn-normal" lay-submit lay-filter="submit">保存设置</button>
+                                <button type="button" class="layui-btn layui-btn-primary" lay-submit lay-filter="reset">重置</button>
                             </div>
                         </div>
                     </div>
@@ -274,56 +274,6 @@ if (!$row) {
             });
         });
     </script>
-
-    <style>
-        .layui-form-label {
-            width: 120px;
-        }
-
-        .layui-input-block {
-            margin-left: 150px;
-        }
-
-        .layui-must {
-            color: red;
-            margin-right: 5px;
-        }
-
-        .layui-form-mid {
-            float: right;
-            margin-right: 10px;
-        }
-
-        .layui-icon-eye {
-            color: #1E9FFF;
-            cursor: pointer;
-        }
-
-        .layui-tab-title {
-            border-bottom: 1px solid #f6f6f6;
-        }
-
-        .layui-card {
-            margin: 10px;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, .05);
-        }
-
-        .password-wrapper {
-            position: relative;
-        }
-        .password-toggle {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            cursor: pointer;
-            color: #1E9FFF;
-            font-size: 20px;
-        }
-        .password-toggle:hover {
-            color: #0d8adc;
-        }
-    </style>
 
 </body>
 

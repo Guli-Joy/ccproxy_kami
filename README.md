@@ -3,11 +3,11 @@
 <div align="center">
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-V3-brightgreen.svg?style=flat-square)](https://github.com/your-repo/ccproxy)
+[![Version](https://img.shields.io/badge/version-V3-brightgreen.svg?style=flat-square)](https://github.com/Guli-Joy/ccproxy_kami)
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D7.0-orange.svg?style=flat-square&logo=php)](https://php.net)
 [![MySQL Version](https://img.shields.io/badge/mysql-%3E%3D5.7-blue.svg?style=flat-square&logo=mysql)](https://www.mysql.com)
-[![GitHub stars](https://img.shields.io/github/stars/your-repo/ccproxy?style=flat-square)](https://github.com/your-repo/ccproxy/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/your-repo/ccproxy?style=flat-square)](https://github.com/your-repo/ccproxy/network)
+[![GitHub stars](https://img.shields.io/github/stars/Guli-Joy/ccproxy_kami?style=flat-square)](https://github.com/Guli-Joy/ccproxy_kami/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/Guli-Joy/ccproxy_kami?style=flat-square)](https://github.com/Guli-Joy/ccproxy_kami/network)
 
 <p align="center">
   <b>功能完整的代理服务器管理系统 | 多用户支持 | 安全可靠</b>
@@ -135,6 +135,24 @@
 </table>
 
 ## 📈 更新日志
+
+### 🌟 v4 (2024-01-10)
+- 📱 全面优化移动端适配
+  - 优化网站设置页面移动端显示
+  - 改进支付配置页面移动端布局
+  - 优化表单控件在移动端的交互体验
+- 🎨 界面交互优化
+  - 优化卡片式布局设计
+  - 改进表单布局和间距
+  - 增强移动端触摸反馈
+- ✨ 功能改进
+  - 优化开关组件显示效果
+  - 改进输入框交互体验
+  - 优化按钮布局和样式
+- 🛠️ 技术优化
+  - 重构CSS架构，提升代码可维护性
+  - 优化样式文件组织结构
+  - 改进响应式布局实现
 
 ### 🌟 v3 (2024-01)
 - 🛡️ 修复多处安全漏洞

@@ -72,7 +72,18 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 	WriteLog("登录日志","可能暴力破解",null,$DB);
 	exit(json_encode($json,JSON_UNESCAPED_UNICODE));
 }elseif(isset($_GET['logout'])){
-	setcookie("sub_admin_token", "", time() - 604800);
+	// 清除所有session
+	session_start();
+	$_SESSION = array();
+	session_destroy();
+	
+	// 清除cookies
+	setcookie("sub_admin_token", "", time() - 604800, '/');
+	setcookie("tab", "", time() - 604800, '/');
+	
+	// 更新数据库中的cookies
+	$DB->exe("UPDATE sub_admin SET cookies='' WHERE username='" . $DB->escape($subconf['username']) . "'");
+	
 	@header('Content-Type: text/html; charset=UTF-8');
     $json = ["code" => "0", "msg" => "您已成功注销本次登陆！"];
     exit(json_encode($json,JSON_UNESCAPED_UNICODE));
@@ -94,6 +105,130 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 		<?php include("foot.php"); ?>
 		<link rel="stylesheet" href="../assets/layui/css/layui.css">
 		<link rel="stylesheet" href="../assets/layui/css/logon.css">
+		<style>
+			/* 添加动画关键帧 */
+			@keyframes float {
+				0% { transform: translateY(0px); }
+				50% { transform: translateY(-10px); }
+				100% { transform: translateY(0px); }
+			}
+			@keyframes rotate {
+				from { transform: rotate(0deg); }
+				to { transform: rotate(360deg); }
+			}
+			@keyframes loading-dot {
+				0%, 100% { opacity: 0.2; }
+				50% { opacity: 1; }
+			}
+			.decoration {
+				transition: all 0.5s ease;
+			}
+			/* 优化加载动画 */
+			.loading-container {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 10px;
+			}
+			.loading-spinner {
+				width: 24px;
+				height: 24px;
+				border: 3px solid #fff;
+				border-top-color: transparent;
+				border-radius: 50%;
+				display: inline-block;
+				animation: rotate 0.8s linear infinite;
+				vertical-align: middle;
+			}
+			.loading-text {
+				color: #fff;
+				font-size: 15px;
+				display: inline-flex;
+				align-items: center;
+			}
+			.loading-dots {
+				display: inline-flex;
+				margin-left: 4px;
+			}
+			.loading-dots span {
+				width: 4px;
+				height: 4px;
+				background: #fff;
+				border-radius: 50%;
+				margin: 0 2px;
+				display: inline-block;
+				animation: loading-dot 1.4s infinite;
+			}
+			.loading-dots span:nth-child(2) {
+				animation-delay: 0.2s;
+			}
+			.loading-dots span:nth-child(3) {
+				animation-delay: 0.4s;
+			}
+			.custom-loading-layer {
+				background: rgba(0, 0, 0, 0.6) !important;
+				backdrop-filter: blur(4px);
+				border-radius: 12px !important;
+			}
+			.custom-loading {
+				width: 20px;
+				height: 20px;
+				border: 2px solid #fff;
+				border-top-color: transparent;
+				border-radius: 50%;
+				display: inline-block;
+				animation: rotate 1s linear infinite;
+				margin-right: 10px;
+			}
+			.layout-main {
+				animation: float 6s ease-in-out infinite;
+			}
+			.animate-bounceOutUp {
+				animation: bounceOutUp 1s forwards;
+			}
+			.animate-shakeX {
+				animation: shakeX 0.8s;
+			}
+			.animate-flipInY {
+				animation: flipInY 0.8s;
+			}
+			.animate-pulse {
+				animation: pulse 1s infinite;
+			}
+			/* 优化装饰元素样式 */
+			.decoration {
+				position: fixed;
+				pointer-events: none;
+				z-index: -1;
+			}
+			.deco-1 {
+				top: 20%;
+				left: 15%;
+				width: 100px;
+				height: 100px;
+				background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+				border-radius: 50%;
+				opacity: 0.6;
+			}
+			.deco-2 {
+				top: 60%;
+				right: 15%;
+				width: 150px;
+				height: 150px;
+				background: linear-gradient(45deg, #4facfe, #00f2fe);
+				border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+				opacity: 0.5;
+			}
+			.deco-3 {
+				bottom: 10%;
+				left: 30%;
+				width: 80px;
+				height: 80px;
+				background: linear-gradient(45deg, #7367f0, #ce9ffc);
+				border-radius: 63% 37% 30% 70% / 50% 45% 55% 50%;
+				opacity: 0.4;
+			}
+		</style>
 	</head>
 	<body>
 		<div class="bg-animation"></div>
@@ -141,17 +276,23 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 				// 自定义弹窗配置
 				layer.config({
 					skin: 'layui-layer-custom',
-					anim: 5, // 使用缩放动画
-					time: 2000, // 默认2秒后自动关闭
-					offset: '30px' // 距离顶部位置
+					anim: 5,
+					time: 2000,
+					offset: '30px'
 				});
 
 				$(function() {
 					// 输入框焦点动画
 					$('.layui-input').focus(function() {
-						$(this).parent().find('i').css('transform', 'scale(1.2)');
+						$(this).parent().find('i').css({
+							'transform': 'scale(1.2)',
+							'transition': 'transform 0.3s ease'
+						});
 					}).blur(function() {
-						$(this).parent().find('i').css('transform', 'scale(1)');
+						$(this).parent().find('i').css({
+							'transform': 'scale(1)',
+							'transition': 'transform 0.3s ease'
+						});
 					});
 
 					// 按钮悬浮效果
@@ -164,6 +305,25 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 						}
 					);
 
+					// 装饰元素动画
+					function animateDecorations() {
+						$('.decoration').each(function(index) {
+							const randomX = Math.random() * 20 - 10;
+							const randomY = Math.random() * 20 - 10;
+							const randomRotate = Math.random() * 360;
+							const randomScale = 0.8 + Math.random() * 0.4;
+							
+							$(this).css({
+								'transform': `translate(${randomX}px, ${randomY}px) rotate(${randomRotate}deg) scale(${randomScale})`,
+								'transition': 'all 3s ease-in-out'
+							});
+						});
+					}
+
+					// 初始化装饰动画
+					animateDecorations();
+					setInterval(animateDecorations, 3000);
+
 					form.on("submit(submit)", function(data) {
 						$.ajax({
 							url: "login.php",
@@ -171,22 +331,34 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 							dataType: "json",
 							data: data.field,
 							beforeSend: function() {
-								// 自定义加载提示
-								layer.msg('<div class="custom-loading"></div>正在登录...', {
-									icon: 16,
-									shade: 0.05,
-									time: false,
-									skin: 'layui-layer-loading'
-								});
+								layer.msg(
+									'<div class="loading-container">' +
+									'<div class="loading-spinner"></div>' +
+									'<div class="loading-text">' +
+									'登录中' +
+									'<div class="loading-dots">' +
+									'<span></span><span></span><span></span>' +
+									'</div>' +
+									'</div>' +
+									'</div>', 
+									{
+										time: 0,
+										shade: [0.3, '#000'],
+										skin: 'custom-loading-layer',
+										area: ['160px', 'auto']
+									}
+								);
 							},
 							success: function(data) {
+								layer.closeAll('loading');
 								if (data.code == "1") {
 									// 登录成功动画
 									$('.layout-main').addClass('animate-bounceOutUp');
 									layer.msg(data.msg, {
 										icon: 1,
 										skin: 'layui-layer-success',
-										anim: 2
+										anim: 2,
+										time: 1000
 									});
 									setTimeout('window.location.href ="./index.php"', 800);
 								} else {
@@ -198,7 +370,8 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 									layer.msg(data.msg, {
 										icon: 5,
 										skin: 'layui-layer-error',
-										anim: 6
+										anim: 6,
+										time: 2000
 									});
 									// 验证码刷新动画
 									$('.codeimg').addClass('animate-flipInY');
@@ -209,15 +382,17 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 								}
 							},
 							error: function(data) {
+								layer.closeAll('loading');
 								layer.msg("登录失败: " + data.code, {
 									icon: 5,
 									skin: 'layui-layer-error',
-									anim: 6
+									anim: 6,
+									time: 2000
 								});
 								$(".codeimg").prop("src", './code.php?r=' + Math.random());
 							}
 						});
-						return false; // 阻止表单默认提交
+						return false;
 					});
 
 					// 回车提交
@@ -228,7 +403,7 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 						}
 					};
 
-					// 验证码点击动画
+					// 验证码点击刷新
 					$(".codeimg").click(function() {
 						$(this).addClass('animate-flipInY');
 						setTimeout(() => {
@@ -236,15 +411,6 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 						}, 1000);
 						$(this).prop("src", './code.php?r=' + Math.random());
 					});
-
-					// 装饰元素动画
-					setInterval(() => {
-						$('.decoration').each(function() {
-							$(this).css({
-								'transform': `translate(${Math.random() * 20 - 10}px, ${Math.random() * 20 - 10}px) rotate(${Math.random() * 360}deg)`
-							});
-						});
-					}, 3000);
 				});
 			});
 		</script>

@@ -12,7 +12,7 @@ if (!($islogin == 1)) {
 		<?php echo $subconf['hostname']; ?>-网站设置
 		</title>
 		<?php include("foot.php"); ?>
-		<link rel="stylesheet" href="../assets/layui/css/hostset.css">
+		<link rel="stylesheet" href="css/hostset.css">
 	</head>
 	<body>
 		<div class="layui-card layui-form">

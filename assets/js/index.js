@@ -208,15 +208,8 @@ layui.define(["element", "layer"], function (exports) {
 		});
 
 	});
-	$("#update_password").click(function (event) {
-		event.preventDefault();
-		layer.open({
-			type: 2,
-			title: "修改密码",
-			area: ["500px", "300px"],
-			maxmin: false,
-			content: "update_password.php"
-		});
+	$("#update_password").click(function() {
+		return false;
 	});
 
 	//一些事件触发

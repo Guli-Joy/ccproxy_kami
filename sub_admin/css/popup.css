@@ -1,0 +1,276 @@
+/* 弹窗基础样式 */
+.password-popup {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.password-popup .layui-layer-content {
+    overflow: visible !important;
+}
+
+/* 关闭按钮样式 */
+.password-popup .layui-layer-setwin {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    font-size: 0;
+    line-height: initial;
+    z-index: 10;
+}
+
+.password-popup .layui-layer-setwin .layui-layer-close2 {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    transform-origin: center;
+    cursor: pointer;
+}
+
+.password-popup .layui-layer-setwin .layui-layer-close2:hover {
+    transform: rotate(90deg) scale(1.1);
+    background: #ff6b6b;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.2);
+    border-color: transparent;
+}
+
+.password-popup .layui-layer-setwin .layui-layer-close2:after,
+.password-popup .layui-layer-setwin .layui-layer-close2:before {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 2px;
+    background-color: #666;
+    border-radius: 3px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.password-popup .layui-layer-setwin .layui-layer-close2:before {
+    transform: rotate(45deg) scale(0.8);
+}
+
+.password-popup .layui-layer-setwin .layui-layer-close2:after {
+    transform: rotate(-45deg) scale(0.8);
+}
+
+.password-popup .layui-layer-setwin .layui-layer-close2:hover:before,
+.password-popup .layui-layer-setwin .layui-layer-close2:hover:after {
+    background-color: #fff;
+    transform: rotate(45deg) scale(1);
+    width: 14px;
+}
+
+.password-popup .layui-layer-setwin .layui-layer-close2:hover:after {
+    transform: rotate(-45deg) scale(1);
+}
+
+.password-popup .layui-layer-setwin .layui-layer-close2:active {
+    transform: rotate(90deg) scale(0.95);
+    box-shadow: 0 2px 6px rgba(255, 107, 107, 0.15);
+}
+
+/* 容器样式 */
+.password-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    padding: 30px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 表单样式 */
+.form-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.form-title {
+    font-size: 24px;
+    color: #333;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.form-subtitle {
+    font-size: 14px;
+    color: #666;
+}
+
+.layui-form-item {
+    margin-bottom: 25px;
+    position: relative;
+}
+
+.layui-form-label {
+    width: auto;
+    padding: 9px 0;
+    text-align: left;
+    font-weight: 500;
+    color: #333;
+}
+
+.layui-input-block {
+    margin-left: 0;
+}
+
+.layui-input {
+    height: 45px;
+    line-height: 45px;
+    border: 2px solid #e6e6e6;
+    border-radius: 8px;
+    padding: 0 15px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.layui-input:focus {
+    border-color: #1E9FFF;
+    box-shadow: 0 0 8px rgba(30,159,255,0.2);
+}
+
+.layui-must {
+    color: #ff6b6b;
+    margin-left: 3px;
+    font-size: 16px;
+}
+
+/* 按钮样式 */
+.btn-container {
+    text-align: center;
+    margin-top: 35px;
+}
+
+.layui-btn {
+    height: 45px;
+    line-height: 45px;
+    padding: 0 35px;
+    font-size: 15px;
+    background: #1E9FFF;
+    border-radius: 25px;
+    box-shadow: 0 5px 15px rgba(30,159,255,0.2);
+    transition: all 0.3s ease;
+}
+
+.layui-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(30,159,255,0.3);
+}
+
+/* 装饰元素 */
+.deco-1, .deco-2, .deco-3 {
+    position: absolute;
+    pointer-events: none;
+    opacity: 0.5;
+    transition: all 0.5s ease;
+}
+
+.deco-1 {
+    top: -20px;
+    right: -20px;
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(45deg, #4facfe, #00f2fe);
+    border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+}
+
+.deco-2 {
+    bottom: -30px;
+    left: -30px;
+    width: 150px;
+    height: 150px;
+    background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+    border-radius: 63% 37% 30% 70% / 50% 45% 55% 50%;
+}
+
+.deco-3 {
+    top: 50%;
+    right: -15px;
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(45deg, #7367f0, #ce9ffc);
+    border-radius: 50%;
+}
+
+/* 移动端适配 */
+@media screen and (max-width: 768px) {
+    .password-popup {
+        width: 92% !important;
+        max-width: 360px !important;
+        position: fixed !important;
+        left: 50% !important;
+        top: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        margin: 0 !important;
+        border-radius: 16px !important;
+        overflow: visible !important;
+    }
+    
+    .password-container {
+        padding: 25px 20px !important;
+        margin: 0 !important;
+    }
+    
+    .form-title {
+        font-size: 20px !important;
+    }
+    
+    .form-subtitle {
+        font-size: 13px !important;
+    }
+    
+    .layui-input {
+        height: 40px !important;
+        line-height: 40px !important;
+    }
+    
+    .btn-container {
+        margin-top: 25px !important;
+    }
+    
+    .layui-btn {
+        height: 40px !important;
+        line-height: 40px !important;
+        padding: 0 25px !important;
+    }
+    
+    .deco-1 {
+        width: 80px !important;
+        height: 80px !important;
+    }
+    
+    .deco-2 {
+        width: 120px !important;
+        height: 120px !important;
+    }
+    
+    .deco-3 {
+        width: 40px !important;
+        height: 40px !important;
+    }
+    
+    /* 软键盘弹出时的处理 */
+    @media screen and (max-height: 500px) {
+        .password-popup {
+            top: 0 !important;
+            transform: translateX(-50%) !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            border-radius: 0 !important;
+        }
+        
+        .password-container {
+            border-radius: 0 !important;
+            padding-top: 40px !important;
+        }
+    }
+} 

@@ -1,0 +1,271 @@
+/* 基础样式 */
+.layui-card {
+    margin: 15px;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, .05);
+    border-radius: 8px;
+}
+
+.layui-form-label {
+    width: 120px;
+    padding: 9px 0;
+    color: #333;
+    font-weight: 500;
+}
+
+.layui-input-block {
+    margin-left: 150px;
+}
+
+.layui-input {
+    height: 38px;
+    line-height: 38px;
+    border: 1px solid #e6e6e6;
+    border-radius: 4px;
+    padding: 0 15px;
+    transition: all 0.3s ease;
+}
+
+.layui-input:focus {
+    border-color: #33cabb;
+    box-shadow: 0 0 8px rgba(51, 202, 187, 0.2);
+}
+
+.layui-must {
+    color: #ff6b6b;
+    margin-right: 5px;
+    font-size: 16px;
+}
+
+.password-wrapper {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #999;
+    transition: color 0.3s ease;
+}
+
+.password-toggle:hover {
+    color: #33cabb;
+}
+
+/* 按钮样式 */
+.layui-btn {
+    height: 38px;
+    line-height: 38px;
+    padding: 0 25px;
+    font-size: 14px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.layui-btn-normal {
+    background: #33cabb;
+}
+
+.layui-btn-normal:hover {
+    background: #2bb1a1;
+    box-shadow: 0 5px 15px rgba(51, 202, 187, 0.2);
+}
+
+.layui-btn-primary {
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    color: #666;
+}
+
+.layui-btn-primary:hover {
+    border-color: #33cabb;
+    color: #33cabb;
+}
+
+/* 开关样式 */
+.layui-form-switch {
+    margin-top: 6px;
+}
+
+.layui-form-checked[lay-skin=primary] i {
+    border-color: #33cabb;
+    background-color: #33cabb;
+}
+
+/* 支付方式复选框基础样式 */
+.layui-form-checkbox[lay-skin=primary] {
+    padding-left: 28px;
+    margin: 4px 10px 4px 0;
+    transition: all 0.3s ease;
+}
+
+.layui-form-checkbox[lay-skin=primary]:hover {
+    opacity: 0.8;
+}
+
+.layui-form-checkbox[lay-skin=primary] i {
+    width: 16px;
+    height: 16px;
+    line-height: 14px;
+    border: 1px solid #d2d2d2;
+    font-size: 12px;
+    border-radius: 2px;
+    background-color: #fff;
+    transition: all 0.2s ease;
+}
+
+.layui-form-checkbox[lay-skin=primary]:hover i {
+    border-color: #33cabb;
+}
+
+.layui-form-checked[lay-skin=primary] i {
+    border-color: #33cabb !important;
+    background-color: #33cabb !important;
+    color: #fff;
+}
+
+.layui-form-checkbox[lay-skin=primary] span {
+    color: #666;
+    font-size: 14px;
+    padding: 0 10px;
+    transition: all 0.2s ease;
+}
+
+.layui-form-checked[lay-skin=primary] span {
+    color: #33cabb !important;
+}
+
+/* 移动端支付方式复选框样式 */
+@media screen and (max-width: 768px) {
+    /* 支付方式复选框容器 */
+    .layui-form-item .layui-input-block {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 5px 0;
+    }
+
+    /* 支付方式复选框 */
+    .layui-form-item .layui-input-block .layui-form-checkbox[lay-skin=primary] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 0 15px;
+        height: 40px;
+        background: #f8f8f8;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        flex: 1;
+        min-width: calc(33.33% - 7px);
+        max-width: calc(33.33% - 7px);
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .layui-form-item .layui-input-block .layui-form-checkbox[lay-skin=primary]:hover {
+        border-color: #33cabb;
+        background: #f0faf9;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(51, 202, 187, 0.1);
+    }
+
+    /* 复选框文字 */
+    .layui-form-checkbox[lay-skin=primary] span {
+        padding: 0;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 40px;
+        flex: 1;
+        text-align: center;
+        color: #666;
+        transition: all 0.3s ease;
+    }
+
+    /* 复选框图标 */
+    .layui-form-checkbox[lay-skin=primary] i {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        height: 18px;
+        line-height: 16px;
+        margin: 0;
+        border-radius: 4px;
+        font-size: 12px;
+        border: 1px solid #ddd;
+        background: #fff;
+        transition: all 0.3s ease;
+    }
+
+    /* 选中状态 */
+    .layui-form-checked[lay-skin=primary] {
+        background: #eefbf9 !important;
+        border-color: #33cabb !important;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(51, 202, 187, 0.15);
+    }
+
+    .layui-form-checked[lay-skin=primary] span {
+        color: #33cabb !important;
+        font-weight: 600;
+    }
+
+    .layui-form-checked[lay-skin=primary] i {
+        background: #33cabb !important;
+        border-color: #33cabb !important;
+        color: #fff !important;
+    }
+
+    /* 添加选中动画效果 */
+    .layui-form-checkbox[lay-skin=primary] i:after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        transition: all 0.3s ease;
+    }
+
+    .layui-form-checked[lay-skin=primary] i:after {
+        width: 24px;
+        height: 24px;
+        opacity: 0;
+    }
+
+    /* 特小屏幕适配 */
+    @media screen and (max-width: 375px) {
+        .layui-form-item .layui-input-block .layui-form-checkbox[lay-skin=primary] {
+            min-width: 100%;
+            max-width: 100%;
+            margin-bottom: 8px;
+        }
+    }
+}
+
+/* 动画效果优化 */
+@media screen and (max-width: 768px) {
+    .layui-form-item {
+        transition: all 0.2s ease;
+    }
+
+    .layui-input:focus {
+        transform: none;
+    }
+
+    .layui-btn:active {
+        transform: scale(0.98);
+    }
+
+    .layui-form-checkbox[lay-skin=primary]:active {
+        opacity: 0.8;
+    }
+} 

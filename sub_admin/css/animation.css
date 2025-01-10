@@ -1,0 +1,217 @@
+/* Loading动画 */
+.page-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.98);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    transition: opacity 0.5s ease;
+}
+
+.page-loader.fade-out {
+    opacity: 0;
+}
+
+.loader-content {
+    text-align: center;
+}
+
+.loader-icon {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #33cabb;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px;
+}
+
+.loader-text {
+    color: #666;
+    font-size: 14px;
+    letter-spacing: 1px;
+}
+
+/* 装饰元素动画 */
+.decoration-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.deco-star {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #33cabb;
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+
+.deco-circle {
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    background: #ff6b6b;
+    border-radius: 50%;
+}
+
+.deco-crayon {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: #7367f0;
+    clip-path: polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%);
+}
+
+/* 云朵动画 */
+.cloud {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 100px;
+    animation: float-cloud 40s linear infinite;
+}
+
+.cloud:before,
+.cloud:after {
+    content: '';
+    position: absolute;
+    background: inherit;
+    border-radius: 50%;
+}
+
+.cloud:before {
+    width: 50%;
+    height: 100%;
+    top: -40%;
+    left: 20%;
+}
+
+.cloud:after {
+    width: 30%;
+    height: 60%;
+    top: -20%;
+    left: 60%;
+}
+
+/* 气泡动画 */
+.bubble {
+    position: absolute;
+    background: linear-gradient(45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.4));
+    border-radius: 50%;
+    animation: float-bubble 3s ease-in-out infinite;
+}
+
+/* 闪烁星星 */
+.twinkle-star {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #fff;
+    animation: twinkle 2s ease-in-out infinite;
+}
+
+/* 小新头像 */
+.shinchan-head {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    background: url('../images/shinchan.png') no-repeat center/contain;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    z-index: 999;
+}
+
+/* 彩虹条 */
+.rainbow {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(to right, 
+        #ff6b6b, 
+        #ff8e8e,
+        #4facfe,
+        #00f2fe,
+        #7367f0,
+        #ce9ffc
+    );
+    z-index: 1000;
+}
+
+/* 按钮波纹效果 */
+.ripple {
+    position: absolute;
+    background: rgba(255,255,255,0.3);
+    border-radius: 50%;
+    transform: scale(0);
+    animation: ripple 0.6s linear;
+    pointer-events: none;
+}
+
+/* 动画关键帧 */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes float-cloud {
+    from { left: -100px; }
+    to { left: 100%; }
+}
+
+@keyframes float-bubble {
+    0%, 100% { 
+        transform: translateY(0) translateX(var(--tx, 0));
+        opacity: 0;
+    }
+    50% { 
+        transform: translateY(-100px) translateX(var(--tx, 0));
+        opacity: 0.8;
+    }
+}
+
+@keyframes twinkle {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 1; }
+}
+
+@keyframes ripple {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* 移动端适配 */
+@media screen and (max-width: 768px) {
+    .shinchan-head {
+        width: 50px;
+        height: 50px;
+        bottom: 15px;
+        right: 15px;
+    }
+    
+    .deco-star,
+    .deco-circle,
+    .deco-crayon {
+        transform: scale(0.8);
+    }
+    
+    .cloud {
+        animation-duration: 30s;
+    }
+} 
