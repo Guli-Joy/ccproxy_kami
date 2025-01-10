@@ -84,7 +84,7 @@ if (!empty($permission_errors)) {
     exit('目录权限检查失败：' . implode('、', $permission_errors));
 }
 
-define('VERSION', '3'); //版本号
+define('VERSION', '4'); //版本号
 @header('Content-Type: text/html; charset=UTF-8');
 include("../config.php");
 $type = $type = isset($_GET['type']) ? addslashes($_GET['type']) : "";;
@@ -880,7 +880,13 @@ function deldir($path = '../install')
                                                         success: function(res) {
                                                             layer.close(installIndex);
                                                             if (res.code == 1) {
-                                                                layer.msg('安装成功！<br>成功执行 ' + res.sql_count + ' 条SQL语句<br>3秒后自动跳转...', {
+                                                                var successMsg = '安装成功！';
+                                                                if (res.sql_count) {
+                                                                    successMsg += '<br>成功执行 ' + res.sql_count + ' 条SQL语句';
+                                                                }
+                                                                successMsg += '<br>3秒后自动跳转...';
+                                                                
+                                                                layer.msg(successMsg, {
                                                                     icon: 1,
                                                                     time: 3000,
                                                                     shade: 0.3,

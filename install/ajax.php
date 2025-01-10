@@ -236,7 +236,11 @@ switch ($act) {
         }
 
         // 安装完成
-        die(json_encode(['code' => 1, 'msg' => "安装成功！\n成功执行 {$success} 条SQL语句。"]));
+        die(json_encode([
+            'code' => 1, 
+            'msg' => "安装成功！", 
+            'sql_count' => $success
+        ]));
         break;
     case "clear_db": #清空数据库
         if (empty($_QET['host']) || empty($_QET['port']) || empty($_QET['user']) || empty($_QET['pwd']) || empty($_QET['dbname'])) {
