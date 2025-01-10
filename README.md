@@ -192,8 +192,7 @@
 
 ### 📢 官方支持
 - 💬 官方QQ群：[点击加入](https://qm.qq.com/q/YpoK9Aifei)
-- 📚 项目文档：访问 `/docs` 目录
-- 🌐 官方网站：[ccproxy.com](https://www.ccproxy.com)
+- 🌐 官方网站：[Github](https://github.com/Guli-Joy/ccproxy_kami)
 - 📧 技术邮箱：573000041@qq.com
 
 </td>
