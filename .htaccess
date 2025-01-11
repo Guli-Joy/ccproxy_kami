@@ -1,0 +1,27 @@
+# 禁止访问logs目录
+<Files ~ "^.*\.log">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# 保护整个logs目录
+<IfModule mod_rewrite.c>
+    RewriteEngine on
+    RewriteRule ^logs/.* - [F,L]
+</IfModule>
+
+# 禁止列出目录内容
+Options -Indexes
+
+# 禁止访问特定文件类型
+<FilesMatch "\.(log|txt|ini|conf)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# 只允许特定IP访问（请替换为您的管理IP）
+#<Files "error.log">
+#    Order deny,allow
+#    Deny from all
+#    Allow from 127.0.0.1
+#</Files>

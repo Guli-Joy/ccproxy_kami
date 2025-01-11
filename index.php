@@ -1,15 +1,24 @@
 <?php
-// 在页面顶部开启会话
+// 开启会话
 session_start();
 
-// 生成新的支付令牌
-if (empty($_SESSION['payment_token'])) {
-    $_SESSION['payment_token'] = bin2hex(random_bytes(32));
-}
+// 加载公共组件（包含了所有安全检查）
+require_once "./includes/common.php";
 
-$is_defend = true;
-@header('Content-Type: text/html; charset=UTF-8');
-include("./includes/common.php");
+try {
+    // 生成新的支付令牌（如果不存在）
+    if (empty($_SESSION['payment_token'])) {
+        $_SESSION['payment_token'] = bin2hex(random_bytes(32));
+    }
+    
+    // 设置页面编码
+    header('Content-Type: text/html; charset=UTF-8');
+    
+} catch (Exception $e) {
+    // 记录错误并显示安全的错误信息
+    error_log("Payment token generation error: " . $e->getMessage());
+    die('系统错误，请稍后再试');
+}
 ?>
 <!DOCTYPE html>
 <html>

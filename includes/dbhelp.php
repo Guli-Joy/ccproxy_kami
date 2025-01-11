@@ -12,52 +12,73 @@
 
 class SpringMySQLi
 {
-    //public variables
-    public $pageNo;         // current page number
-    public $pageRows;       // record number per page
+    // Protected properties
+    protected $dbHost;        // database host
+    protected $dbUser;        // database username
+    protected $dbUpwd;        // database password
+    protected $dbName;        // database name
+    protected $dbChar;        // connection charset
+    protected $dbConn;        // connection handler
+    protected $querySql = ''; // query statement
+    protected $queryLogs = array();    // query history
 
-    public $runCount;       // query count
-    public $runTime;        // consumed time
+    // Public properties
+    public $pageNo = 1;       // current page number
+    public $pageRows = 10;    // record number per page
+    public $runCount = 0;     // query count
+    public $runTime = 0;      // consumed time
+    public $errNo = 0;        // error code
+    public $errMsg = '';      // error message
+    public $count = 0;        // total count
 
-    public $errNo;          // error code
-    public $errMsg;         // error msg
-
-    //private variables
-    private $dbHost;        // database host
-    private $dbUser;        // database username
-    private $dbUpwd;        // database password
-    private $dbName;        // database name
-    private $dbChar;        // connection charset
-    private $dbConn;        // connection handler
-
-    private $querySql;      // query statement
-    private $queryLogs;     // query history
-
-    public $count;     // query history
     /**
-     * class constructor
+     * Class constructor
      */
-    function __construct($host, $user, $pwd, $dbname, $charset = 'utf8mb4')
+    public function __construct($host, $user, $pwd, $dbname, $charset = 'utf8mb4')
     {
-        $this->dbHost   = $host;
-        $this->dbUser   = $user;
-        $this->dbUpwd   = $pwd;
-        $this->dbName   = $dbname;
-        $this->dbChar   = $charset;
-        $this->dbConn;
+        $this->dbHost = $host;
+        $this->dbUser = $user;
+        $this->dbUpwd = $pwd;
+        $this->dbName = $dbname;
+        $this->dbChar = $charset;
+        $this->connect();
+    }
 
+    /**
+     * Execute a SQL query with optional parameters
+     */
+    public function exec($_sql, $_array = null)
+    {
+        if (!$this->connect()) {
+            return false;
+        }
 
-        $this->count    =0;
-        $this->querySql = '';
-        $this->queryLogs= array();
-
-        $this->pageNo   = 1;
-        $this->pageRows = 10;
-
-        $this->runCount = 0;
-        $this->runTime  = 0;
-        $this->errNo    = 0;
-        $this->errMsg   = '';
+        if (is_array($_array)) {
+            $stmt = $this->dbConn->prepare($_sql);
+            if ($stmt) {
+                $result = $stmt->execute($_array);
+                if ($result !== false) {
+                    return $result;
+                } else {
+                    $this->errNo = $stmt->errno;
+                    $this->errMsg = $stmt->error;
+                    return false;
+                }
+            } else {
+                $this->errNo = $this->dbConn->errno;
+                $this->errMsg = $this->dbConn->error;
+                return false;
+            }
+        } else {
+            $result = $this->dbConn->query($_sql);
+            if ($result !== false) {
+                return $result;
+            } else {
+                $this->errNo = $this->dbConn->errno;
+                $this->errMsg = $this->dbConn->error;
+                return false;
+            }
+        }
     }
 
     /**
@@ -202,40 +223,7 @@ class SpringMySQLi
         unset($arr);
         return $map;
     }
-/**
- * Undocumented function
- *
- * @param [type] $_sql
- * @param [type] $_array
- * @author 一花 <487735913@qq.com>
- * @copyright run a sql function [type]  [type]
- */
-    public function exec($_sql, $_array = null)
-	{
-		if (is_array($_array)) {
-			$stmt = $this->db->prepare($_sql);
-			if($stmt) {
-				$result = $stmt->execute($_array);
-				if($result!==false){
-					return $result;
-				}else{
-					$this->errorInfo = $stmt->errorInfo();
-					return false;
-				}
-			}else{
-				$this->errorInfo = $this->db->errorInfo();
-				return false;
-			}
-		} else {
-			$result = $this->db->exec($_sql);
-			if($result!==false){
-				return $result;
-			}else{
-				$this->errorInfo = $this->db->errorInfo();
-				return false;
-			}
-		}
-	}
+
     /**
      * run a sql
      */

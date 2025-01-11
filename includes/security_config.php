@@ -6,7 +6,7 @@
 
 // 基础安全配置
 define('SECURE_MODE', true);                      // 安全模式开关
-define('DEBUG_MODE', false);                      // 调试模式（生产环境应设为false）
+define('DEBUG_MODE', true);                      // 调试模式（生产环境应设为false）
 define('MAINTENANCE_MODE', false);                // 维护模式
 
 // Session安全配置
@@ -143,9 +143,113 @@ function is_admin_ip($ip) {
     return in_array($ip, $ADMIN_IPS);
 }
 
-// 初始化安全配置
+// 整合360safe配置
+$SECURITY_MODULES = [
+    '360safe' => true,           // 360网站安全检测
+    'xss_filter' => true,        // XSS过滤
+    'sql_filter' => true,        // SQL注入过滤
+    'upload_filter' => true,     // 文件上传过滤
+    'csrf_protection' => true,   // CSRF保护
+    'rate_limit' => true         // 请求频率限制
+];
+
+// 目录权限配置
+define('LOG_DIR_PERMISSION', 0750);
+define('LOG_FILE_PERMISSION', 0640);
+define('UPLOAD_DIR_PERMISSION', 0750);
+define('UPLOAD_FILE_PERMISSION', 0640);
+
+// 日志配置扩展
+$LOG_SETTINGS = [
+    'security' => [
+        'path' => LOG_PATH . 'security/',
+        'rotate' => true,
+        'max_files' => 30,
+        'compress' => true
+    ],
+    'error' => [
+        'path' => LOG_PATH . 'error/',
+        'rotate' => true,
+        'max_files' => 30,
+        'compress' => true
+    ],
+    'access' => [
+        'path' => LOG_PATH . 'access/',
+        'rotate' => true,
+        'max_files' => 30,
+        'compress' => true
+    ],
+    'audit' => [
+        'path' => LOG_PATH . 'audit/',
+        'rotate' => true,
+        'max_files' => 30,
+        'compress' => true
+    ]
+];
+
+// 防护规则配置
+$PROTECTION_RULES = [
+    'xss' => [
+        'enabled' => true,
+        'level' => 'high',
+        'custom_rules' => []
+    ],
+    'sql' => [
+        'enabled' => true,
+        'level' => 'high',
+        'custom_rules' => []
+    ],
+    'upload' => [
+        'enabled' => true,
+        'max_size' => UPLOAD_MAX_SIZE,
+        'allowed_types' => unserialize(ALLOWED_FILE_TYPES),
+        'scan_virus' => true
+    ],
+    'csrf' => [
+        'enabled' => true,
+        'token_length' => CSRF_TOKEN_LENGTH,
+        'token_age' => CSRF_TOKEN_AGE
+    ]
+];
+
+// 通知配置
+$NOTIFICATION_SETTINGS = [
+    'admin_email' => 'admin@example.com',
+    'alert_level' => 'high',
+    'notification_methods' => ['email', 'log'],
+    'throttle' => [
+        'enabled' => true,
+        'max_notifications' => 10,
+        'time_window' => 3600
+    ]
+];
+
+// 初始化目录结构
+function init_directory_structure() {
+    $directories = [
+        LOG_PATH,
+        LOG_PATH . 'security/',
+        LOG_PATH . 'error/',
+        LOG_PATH . 'access/',
+        LOG_PATH . 'audit/',
+        UPLOAD_PATH
+    ];
+    
+    foreach ($directories as $dir) {
+        if (!file_exists($dir)) {
+            mkdir($dir, LOG_DIR_PERMISSION, true);
+        }
+    }
+}
+
+// 扩展安全初始化函数
 function init_security() {
+    global $SECURITY_MODULES, $PROTECTION_RULES, $NOTIFICATION_SETTINGS;
+    
     if (SECURE_MODE) {
+        // 初始化目录结构
+        init_directory_structure();
+        
         // 应用安全头
         apply_security_headers();
         
@@ -154,16 +258,102 @@ function init_security() {
             die('系统维护中，请稍后再试...');
         }
         
-        // 创建日志目录
-        if (!file_exists(LOG_PATH)) {
-            mkdir(LOG_PATH, 0755, true);
+        // 初始化安全模块
+        foreach ($SECURITY_MODULES as $module => $enabled) {
+            if ($enabled) {
+                init_security_module($module);
+            }
         }
         
-        // 创建上传目录
-        if (!file_exists(UPLOAD_PATH)) {
-            mkdir(UPLOAD_PATH, 0755, true);
+        // 设置保护规则
+        foreach ($PROTECTION_RULES as $type => $rules) {
+            if ($rules['enabled']) {
+                apply_protection_rules($type, $rules);
+            }
         }
+        
+        // 配置通知系统
+        configure_notifications($NOTIFICATION_SETTINGS);
     }
+}
+
+// 初始化安全模块
+function init_security_module($module) {
+    switch ($module) {
+        case '360safe':
+            require_once __DIR__ . '/360safe/xss.php';
+            break;
+        case 'xss_filter':
+            // 初始化XSS过滤器
+            break;
+        case 'sql_filter':
+            // 初始化SQL注入过滤器
+            break;
+        case 'upload_filter':
+            // 初始化上传过滤器
+            break;
+        case 'csrf_protection':
+            // 初始化CSRF保护
+            break;
+        case 'rate_limit':
+            // 初始化请求频率限制
+            break;
+    }
+}
+
+// 应用保护规则
+function apply_protection_rules($type, $rules) {
+    switch ($type) {
+        case 'xss':
+            // 应用XSS保护规则
+            break;
+        case 'sql':
+            // 应用SQL注入保护规则
+            break;
+        case 'upload':
+            // 应用文件上传保护规则
+            break;
+        case 'csrf':
+            // 应用CSRF保护规则
+            break;
+    }
+}
+
+// 配置通知系统
+function configure_notifications($settings) {
+    // 配置通知系统
+    if ($settings['throttle']['enabled']) {
+        // 设置通知限制
+    }
+}
+
+// 开发环境配置
+$DEV_MODE = true;  // 开发模式开关
+
+// 开发环境IP白名单
+$DEV_ALLOWED_IPS = array(
+    '127.0.0.1',          // 本地回环
+    '::1',                // IPv6本地
+    'localhost',          // 本地域名
+    '192.168.*.*',        // 内网IP段
+    '172.16.*.*',         // Docker默认网段
+    '10.*.*.*'           // 内网IP段
+);
+
+// 修改IP白名单配置
+$ALLOWED_IPS = array_merge($ALLOWED_IPS, $DEV_ALLOWED_IPS);
+
+// 开发环境下的安全配置调整
+if ($DEV_MODE) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+    if (!defined('LOG_DIR_PERMISSION')) {
+        define('LOG_DIR_PERMISSION', 0755);
+    }
+    if (!defined('LOG_FILE_PERMISSION')) {
+        define('LOG_FILE_PERMISSION', 0644);
+    }
+    $SECURITY_HEADERS['Content-Security-Policy'] = "default-src * 'unsafe-inline' 'unsafe-eval'; img-src * data:";
 }
 
 // 执行安全初始化

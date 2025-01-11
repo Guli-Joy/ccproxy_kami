@@ -169,41 +169,13 @@ class SecurityFilter {
      * 记录安全日志
      */
     public static function logSecurityEvent($event, $level = 'INFO', $context = []) {
-        if (!defined('LOG_PATH')) {
-            return false;
-        }
-        
-        $log_file = LOG_PATH . 'security.log';
-        $timestamp = date('Y-m-d H:i:s');
-        $ip = $_SERVER['REMOTE_ADDR'];
-        $user = isset($_SESSION['username']) ? $_SESSION['username'] : 'guest';
-        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
-        $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'Unknown';
-        $requestUri = $_SERVER['REQUEST_URI'] ?? 'Unknown';
-        
-        // 添加上下文信息
-        $contextStr = !empty($context) ? json_encode($context, JSON_UNESCAPED_UNICODE) : '';
-        
-        $log_entry = sprintf(
-            "[%s] [%s] [IP:%s] [User:%s] [UA:%s] [%s %s] %s %s\n",
-            $timestamp,
-            $level,
-            $ip,
-            $user,
-            $userAgent,
-            $requestMethod,
-            $requestUri,
-            $event,
-            $contextStr
-        );
-        
-        // 确保日志文件权限正确
-        if (!file_exists($log_file)) {
-            touch($log_file);
-            chmod($log_file, 0640);
-        }
-        
-        return error_log($log_entry, 3, $log_file);
+        $logger = Logger::getInstance();
+        $logger->error($event, array_merge($context, [
+            'security_level' => $level,
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
+            'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'Unknown',
+            'request_uri' => $_SERVER['REQUEST_URI'] ?? 'Unknown'
+        ]));
     }
     
     /**

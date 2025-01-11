@@ -33,7 +33,7 @@ function authcode($string, $operation = 'DECODE', $key = '', $expiry = 0)
         $result .= chr(ord($string[$i]) ^ ($box[($box[$a] + $box[$j]) % 256]));
     }
     if ($operation == 'DECODE') {
-        if ((substr($result, 0, 10) == 0 || substr($result, 0, 10) - time() > 0) && substr($result, 10, 16) == substr(md5(substr($result, 26) . $keyb), 0, 16)) {
+        if ((intval(substr($result, 0, 10)) == 0 || intval(substr($result, 0, 10)) - time() > 0) && substr($result, 10, 16) == substr(md5(substr($result, 26) . $keyb), 0, 16)) {
             return substr($result, 26);
         } else {
             return '';
@@ -87,14 +87,14 @@ function sysmsg($msg = '未知的异常', $die = true)
                 border-bottom: 1px solid #dadada;
                 clear: both;
                 color: #666;
-                font: 24px "微软雅黑", "Microsoft YaHei", , sans-serif;
+                font: 24px "微软雅黑", "Microsoft YaHei", sans-serif;
                 margin: 30px 0 0 0;
                 padding: 0;
-                padding-bottom: 7px
+                padding-bottom: 7px;
             }
 
             #error-page {
-                margin-top: 50px
+                margin-top: 50px;
             }
 
             h3 {
@@ -139,7 +139,6 @@ function sysmsg($msg = '未知的异常', $die = true)
                 padding: 0 10px 1px;
                 cursor: pointer;
                 -webkit-border-radius: 3px;
-                -webkit-appearance: none;
                 border-radius: 3px;
                 white-space: nowrap;
                 -webkit-box-sizing: border-box;
@@ -147,7 +146,9 @@ function sysmsg($msg = '未知的异常', $die = true)
                 box-sizing: border-box;
                 -webkit-box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(0, 0, 0, .08);
                 box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(0, 0, 0, .08);
-                vertical-align: top
+                vertical-align: top;
+                -webkit-appearance: none;
+                appearance: none;
             }
 
             .button.button-large {

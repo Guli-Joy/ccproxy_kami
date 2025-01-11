@@ -45,7 +45,30 @@ if ((is_defend==true || CC_Defender==3)) {
     }
 }
 
-// 加载安全配置和过滤类
+// 加载必要的安全组件
+require_once(SYSTEM_ROOT.'Logger.php');
+require_once(SYSTEM_ROOT.'security.php');
+
+// 初始化日志系统
+$logger = Logger::getInstance();
+
+// 初始化安全系统
+$security = Security::getInstance();
+if (!$security->initialize()) {
+    $logger->error('安全系统初始化失败');
+    die('安全系统初始化失败');
+}
+
+// 处理请求安全检查
+if (!$security->handleRequest()) {
+    $logger->security('请求被拦截', [
+        'ip' => $_SERVER['REMOTE_ADDR'],
+        'uri' => $_SERVER['REQUEST_URI']
+    ]);
+    die('请求被拦截');
+}
+
+// 加载其他组件
 require_once(SYSTEM_ROOT.'security_config.php');
 require_once(SYSTEM_ROOT.'SecurityFilter.php');
 
@@ -56,6 +79,7 @@ $_COOKIE = SecurityFilter::xssClean($_COOKIE);
 
 // 检查IP是否被封禁
 if (SecurityFilter::isIpBanned($_SERVER['REMOTE_ADDR'])) {
+    $logger->security('IP已被封禁', ['ip' => $_SERVER['REMOTE_ADDR']]);
     die('您的IP已被封禁，请稍后再试');
 }
 
@@ -193,31 +217,7 @@ if(isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
 if (!function_exists('logSecurityEvent')) {
     // 创建安全日志记录函数
     function logSecurityEvent($type, $message, $data = []) {
-        $logEntry = [
-            'datetime' => date('Y-m-d H:i:s'),
-            'type' => $type,
-            'ip' => $_SERVER['REMOTE_ADDR'],
-            'user' => isset($_SESSION['user']) ? $_SESSION['user'] : 'guest',
-            'uri' => $_SERVER['REQUEST_URI'],
-            'message' => $message,
-            'data' => $data,
-            'user_agent' => $_SERVER['HTTP_USER_AGENT']
-        ];
-        
-        $logFile = __DIR__ . '/../logs/security.log';
-        
-        // 确保日志目录存在
-        $logDir = dirname($logFile);
-        if (!file_exists($logDir)) {
-            mkdir($logDir, 0755, true);
-        }
-        
-        // 检查日志文件大小
-        if (file_exists($logFile) && filesize($logFile) > 10 * 1024 * 1024) { // 10MB
-            $backupFile = $logFile . '.' . date('Y-m-d-H-i-s');
-            rename($logFile, $backupFile);
-        }
-        
-        error_log(json_encode($logEntry, JSON_UNESCAPED_UNICODE) . "\n", 3, $logFile);
+        global $logger;
+        $logger->security($message, array_merge(['event_type' => $type], $data));
     }
 }
