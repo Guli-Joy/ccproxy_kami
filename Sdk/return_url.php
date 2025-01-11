@@ -1,4 +1,14 @@
 <?php
+// 引入安全配置
+if(!defined('IN_COMMON')) {
+    require_once(dirname(__DIR__).'/includes/common.php');
+}
+
+// 检查请求安全性
+if (!$security->handleRequest()) {
+    die('非法请求');
+}
+
 /* * 
  * 功能：彩虹易支付页面跳转同步通知页面
  */
@@ -36,7 +46,7 @@ require_once("../config.php");
                 'qqpay' => 'QQ钱包'
             ];
 
-            if($_GET['trade_status'] == 'TRADE_SUCCESS') {
+            if(strtoupper($_GET['trade_status']) == 'TRADE_SUCCESS') {
                 $conn = new mysqli($dbconfig['host'], $dbconfig['user'], $dbconfig['pwd'], $dbconfig['dbname'], $dbconfig['port']);
                 if ($conn->connect_error) {
                     die("连接失败: " . $conn->connect_error);
@@ -51,17 +61,17 @@ require_once("../config.php");
                 $conn->close();
 
                 if ($order) {
-                    // 显示账号信息
-                    echo '<div class="account-info card">';
-                    echo '<div class="title"><i class="fas fa-user-circle"></i>账号信息</div>';
-                    echo '<div class="info-item"><span class="info-label"><i class="fas fa-user"></i>账号</span><span class="info-value">'.$order['account'].'</span></div>';
-                    if ($order['mode'] == 'register') {
-                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-key"></i>密码</span><span class="info-value">'.$order['password'].'</span></div>';
-                    }
-                    echo '<div class="info-item"><span class="info-label"><i class="fas fa-clock"></i>套餐时长</span><span class="info-value">'.$order['days'].'天</span></div>';
-                    echo '</div>';
-
                     if ($order['status'] == 1) {
+                        // 显示账号信息
+                        echo '<div class="account-info card">';
+                        echo '<div class="title"><i class="fas fa-user-circle"></i>账号信息</div>';
+                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-user"></i>账号</span><span class="info-value">'.$order['account'].'</span></div>';
+                        if ($order['mode'] == 'register') {
+                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-key"></i>密码</span><span class="info-value">'.$order['password'].'</span></div>';
+                        }
+                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-clock"></i>套餐时长</span><span class="info-value">'.$order['days'].'天</span></div>';
+                        echo '</div>';
+
                         $ch = curl_init();
                         $post_data = array(
                             'user' => $order['account'],
@@ -106,7 +116,7 @@ require_once("../config.php");
                         echo '<script>
                             setTimeout(function() {
                                 window.location.reload();
-                            }, 3000);
+                            }, 2000); // 每2秒刷新一次
                         </script>';
                     }
                 }
@@ -115,8 +125,13 @@ require_once("../config.php");
                 echo '<div class="status-failed"><i class="fas fa-times-circle status-icon"></i><br>交易进行中</div>';
                 echo '</div>';
                 echo '<div class="order-info card">';
-                echo '<div class="info-item"><span class="info-label"><i class="fas fa-info-circle"></i>当前状态</span><span class="info-value">'.$trade_status.'</span></div>';
+                echo '<div class="info-item"><span class="info-label"><i class="fas fa-info-circle"></i>当前状态</span><span class="info-value">'.strtoupper($_GET['trade_status']).'</span></div>';
                 echo '</div>';
+                echo '<script>
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 2000); // 每2秒刷新一次
+                </script>';
             }
         } else {
             echo '<div class="status-header">';

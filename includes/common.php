@@ -34,7 +34,7 @@ if (is_file(SYSTEM_ROOT . '360safe/360webscan.php')) {
 }
 
 //判断是否开启防CC
-if ((is_defend==true || CC_Defender==3)) {
+if ((is_defend==true || CC_Defender==3) && !defined('SKIP_CC_CHECK')) {
     if ((!isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower(!isset($_SERVER['HTTP_X_REQUESTED_WITH']))!='XMLHttpRequest')) {
         include_once(SYSTEM_ROOT.'txprotect.php');
     }

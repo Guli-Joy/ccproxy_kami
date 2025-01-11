@@ -482,10 +482,24 @@ function userquer($column, $ccp)
     $result = array_filter($ccp, function ($where) use ($column) {
         return $where['user'] == $column;
     });
+    
+    // 如果没有找到用户，直接返回账号不存在
+    if(empty($result)) {
+        return '<h5 style="color: red;display: inline;">账号不存在</h5>';
+    }
+    
     $col = array_column($result, 'disabletime');
-    //expire
     $col2 = array_column($result, 'expire');
-    return $col2[0] == 1 ? '<h5 style="color: red;display: inline;">到期时间：' . $col[0] . '</h5>' : ($col[0] != "" ? '<h5 style="color: #1E9FFF;display: inline;">到期时间：' . $col[0] . '</h5>' : '<h5 style="color: red;display: inline;">账号不存在</h5>');
+    
+    // 确保数组不为空且索引存在
+    if(empty($col) || empty($col2)) {
+        return '<h5 style="color: red;display: inline;">账号不存在</h5>';
+    }
+    
+    return $col2[0] == 1 ? 
+        '<h5 style="color: red;display: inline;">到期时间：' . $col[0] . '</h5>' : 
+        ($col[0] != "" ? '<h5 style="color: #1E9FFF;display: inline;">到期时间：' . $col[0] . '</h5>' : 
+        '<h5 style="color: red;display: inline;">账号不存在</h5>');
 }
 
 

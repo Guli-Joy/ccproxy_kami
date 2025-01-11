@@ -1,213 +1,206 @@
 <?php
-/* *
- * 功能：彩虹易支付异步通知页面
- */
 
-require_once("lib/epay.config.php");
-require_once("lib/EpayCore.class.php");
+
+// 引入配置文件
+require_once("./lib/epay.config.php");
+require_once("./lib/EpayCore.class.php");
 require_once("../config.php");
-include("../includes/function.php");
+require_once("../includes/function.php");
 
-function getUserInfo($admin_password, $admin_port, $proxyaddress, $username) {
-    $users = queryuserall($admin_password, $admin_port, $proxyaddress);
-    foreach ($users as $user) {
-        if ($user['user'] === $username) {
-            return $user;
-        }
-    }
-    return null;
+// 确保配置正确加载
+if(!isset($epay_config) || !is_array($epay_config)) {
+    die('config error');
 }
 
-function handlePaymentSuccess($data, $conn) {
-    try {
-        // 获取订单信息
-        $stmt = $conn->prepare("SELECT * FROM orders WHERE order_no = ?");
-        $stmt->bind_param("s", $data['out_trade_no']);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows === 0) {
-            return ['code' => -1, 'msg' => '订单不存在'];
-        }
-        $order = $result->fetch_assoc();
-
-        // 获取套餐信息
-        $stmt = $conn->prepare("SELECT days FROM packages WHERE id = ?");
-        $stmt->bind_param("i", $order['package_id']);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows === 0) {
-            return ['code' => -1, 'msg' => '套餐不存在'];
-        }
-        $package = $result->fetch_assoc();
-
-        // 获取应用服务器信息
-        $stmt = $conn->prepare("SELECT serverip FROM application WHERE appcode = ?");
-        $stmt->bind_param("s", $order['appcode']);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows === 0) {
-            return ['code' => -1, 'msg' => '应用不存在'];
-        }
-        $app = $result->fetch_assoc();
-
-        // 获取服务器配置信息
-        $stmt = $conn->prepare("SELECT ip,serveruser,password,cport FROM server_list WHERE ip = ?");
-        $stmt->bind_param("s", $app['serverip']);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows === 0) {
-            return ['code' => -1, 'msg' => '服务器配置不存在'];
-        }
-        $server = $result->fetch_assoc();
-
-        // 设置CCProxy连接参数
-        $proxyaddress = $server['ip'];
-        $admin_password = $server['password'];
-        $admin_port = $server['cport'];
-
-        // 查询用户是否存在
-        $users = queryuserall($admin_password, $admin_port, $proxyaddress);
-        $userExists = !existsuser($order['account'], $users);
-
-        // 根据订单类型处理
-        if ($order['mode'] === 'register') {
-            if ($userExists) {
-                return ['code' => -1, 'msg' => '用户已存在'];
-            }
-
-            $userdata = [
-                'user' => $order['account'],
-                'pwd' => $order['password'],
-                'expire' => $package['days'],
-                'use_date' => date('Y-m-d H:i:s'),
-                'connection' => -1,
-                'bandwidthup' => -1,
-                'bandwidthdown' => -1
-            ];
-
-            $result = AddUser($proxyaddress, $admin_password, $admin_port, $userdata);
-            
-        } elseif ($order['mode'] === 'renew') {
-            if (!$userExists) {
-                return ['code' => -1, 'msg' => '用户不存在，无法续费'];
-            }
-
-            $userInfo = getUserInfo($admin_password, $admin_port, $proxyaddress, $order['account']);
-            $currentExpiry = !empty($userInfo['disabletime']) ? strtotime($userInfo['disabletime']) : time();
-            
-            if ($currentExpiry < time()) {
-                $currentExpiry = time();
-            }
-
-            $newExpiry = date('Y-m-d H:i:s', $currentExpiry + ($package['days'] * 24 * 3600));
-            
-            $result = UserUpdate(
-                $admin_password,
-                $admin_port,
-                $proxyaddress,
-                $order['account'],
-                '',
-                $newExpiry,
-                -1,
-                -1,
-                -1
-            );
-        } else {
-            return ['code' => -1, 'msg' => '未知的订单类型'];
-        }
-
-        return $result;
-
-    } catch (Exception $e) {
-        return ['code' => -1, 'msg' => '系统异常：' . $e->getMessage()];
-    }
-}
-
-// 添加防重放机制
-function checkReplay($trade_no) {
-    $cache_file = __DIR__ . '/../cache/notify_' . md5($trade_no) . '.lock';
+try {
+    // 初始化
+    $epay = new EpayCore($epay_config);
     
-    if (file_exists($cache_file)) {
-        $cache_time = file_get_contents($cache_file);
-        if (time() - intval($cache_time) < 3600) { // 1小时内的重复通知
-            return false;
-        }
-    }
+    // 验证签名
+    $verify_result = $epay->verifyNotify();
     
-    file_put_contents($cache_file, time());
-    return true;
-}
-
-// 添加调试日志
-error_log("Received notify parameters: " . json_encode($_GET));
-
-$epay = new EpayCore($epay_config);
-$verify_result = $epay->verifyNotify();
-
-error_log("Verify result: " . ($verify_result ? 'true' : 'false'));
-
-if($verify_result) {
-    // 验证成功后的处理
-    if ($_GET['trade_status'] == 'TRADE_SUCCESS') {
-        // 检查是否重复通知
-        if (!checkReplay($_GET['out_trade_no'])) {
-            error_log("Duplicate notification detected");
-            echo "success"; // 对重复通知返回成功
-            exit;
+    if($verify_result) {
+        // 验证基本参数
+        $required_params = array('out_trade_no', 'trade_no', 'trade_status');
+        foreach($required_params as $param) {
+            if(!isset($_GET[$param]) || trim($_GET[$param]) === '') {
+                die('param error');
+            }
         }
         
-        $conn = new mysqli($dbconfig['host'], $dbconfig['user'], $dbconfig['pwd'], $dbconfig['dbname'], $dbconfig['port']);
-        
-        if ($conn->connect_error) {
-            error_log("Database connection failed: " . $conn->connect_error);
-            echo "fail";
-            exit;
+        // 验证PID
+        if(!isset($epay_config['pid']) || $_GET['pid'] != $epay_config['pid']) {
+            die('pid error');
         }
-
-        try {
-            // 开始事务
-            $conn->begin_transaction();
-
-            // 更新订单状态
-            $stmt = $conn->prepare("UPDATE orders SET status = 1 WHERE order_no = ? AND status = 0");
-            $stmt->bind_param("s", $_GET['out_trade_no']);
-            $stmt->execute();
+        
+        // 验证订单状态
+        if(strtoupper($_GET['trade_status']) == 'TRADE_SUCCESS') {
+            // 连接数据库
+            $conn = new mysqli($dbconfig['host'], $dbconfig['user'], $dbconfig['pwd'], $dbconfig['dbname'], $dbconfig['port']);
+            if ($conn->connect_error) {
+                die('db error');
+            }
             
-            if ($stmt->affected_rows > 0) {
-                $result = handlePaymentSuccess($_GET, $conn);
-                if ($result['code'] === -1) {
-                    error_log("Payment processing failed: " . $result['msg']);
-                    $conn->rollback();
-                    echo "fail";
-                    exit;
+            try {
+                // 开始事务
+                $conn->begin_transaction();
+                
+                // 更新订单状态
+                $stmt = $conn->prepare("UPDATE orders SET status = 1, pay_type = ? WHERE order_no = ? AND status = 0");
+                if (!$stmt) {
+                    throw new Exception("SQL准备失败: " . $conn->error);
                 }
                 
-                // 提交事务
-                $conn->commit();
-                echo "success";
-            } else {
-                error_log("Order status update failed or order already processed");
+                $stmt->bind_param("ss", $_GET['type'], $_GET['out_trade_no']);
+                if (!$stmt->execute()) {
+                    throw new Exception("订单状态更新失败: " . $stmt->error);
+                }
+                
+                if ($stmt->affected_rows > 0) {
+                    // 获取订单信息
+                    $stmt = $conn->prepare("SELECT * FROM orders WHERE order_no = ?");
+                    $stmt->bind_param("s", $_GET['out_trade_no']);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $order = $result->fetch_assoc();
+                    
+                    if (!$order) {
+                        throw new Exception("订单不存在");
+                    }
+                    
+                    // 获取套餐信息
+                    $stmt = $conn->prepare("SELECT days FROM packages WHERE id = ?");
+                    $stmt->bind_param("i", $order['package_id']);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $package = $result->fetch_assoc();
+                    
+                    if (!$package) {
+                        throw new Exception("套餐不存在");
+                    }
+                    
+                    // 获取应用服务器信息
+                    $stmt = $conn->prepare("SELECT serverip FROM application WHERE appcode = ?");
+                    $stmt->bind_param("s", $order['appcode']);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $app = $result->fetch_assoc();
+                    
+                    if (!$app) {
+                        throw new Exception("应用不存在");
+                    }
+                    
+                    // 获取服务器配置
+                    $stmt = $conn->prepare("SELECT ip,serveruser,password,cport FROM server_list WHERE ip = ?");
+                    $stmt->bind_param("s", $app['serverip']);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $server = $result->fetch_assoc();
+                    
+                    if (!$server) {
+                        throw new Exception("服务器配置不存在");
+                    }
+                    
+                    // 处理CCProxy账号
+                    $proxyaddress = $server['ip'];
+                    $admin_password = $server['password'];
+                    $admin_port = $server['cport'];
+                    
+                    // 查询用户列表
+                    $users = queryuserall($admin_password, $admin_port, $proxyaddress);
+                    if ($users === false) {
+                        throw new Exception("获取用户列表失败");
+                    }
+                    
+                    $userExists = !existsuser($order['account'], $users);
+                    
+                    if ($order['mode'] === 'register') {
+                        if ($userExists) {
+                            throw new Exception("用户已存在");
+                        }
+                        
+                        // 创建新用户
+                        $userdata = array(
+                            'user' => $order['account'],
+                            'pwd' => $order['password'],
+                            'expire' => $package['days'],
+                            'use_date' => date('Y-m-d H:i:s'),
+                            'connection' => -1,
+                            'bandwidthup' => -1,
+                            'bandwidthdown' => -1
+                        );
+                        
+                        $result = AddUser($proxyaddress, $admin_password, $admin_port, $userdata);
+                        if (!$result) {
+                            throw new Exception("创建用户失败");
+                        }
+                        
+                    } elseif ($order['mode'] === 'renew') {
+                        if (!$userExists) {
+                            throw new Exception("用户不存在");
+                        }
+                        
+                        // 获取用户信息
+                        $userInfo = null;
+                        foreach ($users as $user) {
+                            if ($user['user'] === $order['account']) {
+                                $userInfo = $user;
+                                break;
+                            }
+                        }
+                        
+                        if (!$userInfo) {
+                            throw new Exception("获取用户信息失败");
+                        }
+                        
+                        // 计算新的到期时间
+                        $currentExpiry = !empty($userInfo['disabletime']) ? strtotime($userInfo['disabletime']) : time();
+                        if ($currentExpiry < time()) {
+                            $currentExpiry = time();
+                        }
+                        
+                        $newExpiry = date('Y-m-d H:i:s', $currentExpiry + ($package['days'] * 24 * 3600));
+                        
+                        // 更新用户
+                        $result = UserUpdate(
+                            $admin_password,
+                            $admin_port,
+                            $proxyaddress,
+                            $order['account'],
+                            '',
+                            $newExpiry,
+                            -1,
+                            -1,
+                            -1
+                        );
+                        
+                        if (!$result) {
+                            throw new Exception("更新用户失败");
+                        }
+                    } else {
+                        throw new Exception("未知的订单类型");
+                    }
+                    
+                    // 提交事务
+                    $conn->commit();
+                    echo "success";
+                    
+                } else {
+                    echo "success"; // 订单已处理，返回成功
+                }
+                
+            } catch (Exception $e) {
                 $conn->rollback();
-                echo "fail";
+                die($e->getMessage());
+            } finally {
+                $conn->close();
             }
-        } catch (Exception $e) {
-            error_log("Exception occurred: " . $e->getMessage());
-            $conn->rollback();
-            echo "fail";
-        } finally {
-            $conn->close();
+        } else {
+            die('trade status error');
         }
-        exit;
+    } else {
+        die('sign error');
     }
-    echo "fail";
-    exit;
+} catch (Exception $e) {
+    die($e->getMessage());
 }
-
-error_log("Sign verification failed");
-echo "fail";
-exit;
-?>

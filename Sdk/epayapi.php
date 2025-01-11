@@ -1,118 +1,22 @@
-<!DOCTYPE html>
-<html>
-<head>
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>正在跳转到支付页面</title>
-	<style type="text/css">
-		* {
-			margin: 0;
-			padding: 0;
-			box-sizing: border-box;
-		}
-		
-		body {
-			font-family: "Microsoft YaHei", Arial, sans-serif;
-			background: #f8f9fa;
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			min-height: 100vh;
-			color: #333;
-		}
-		
-		.container {
-			background: white;
-			padding: 2rem;
-			border-radius: 15px;
-			box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-			text-align: center;
-			max-width: 90%;
-			width: 400px;
-			animation: fadeIn 0.5s ease;
-		}
-		
-		@keyframes fadeIn {
-			from { opacity: 0; transform: translateY(20px); }
-			to { opacity: 1; transform: translateY(0); }
-		}
-		
-		.loader {
-			width: 60px;
-			height: 60px;
-			margin: 0 auto 25px;
-			position: relative;
-		}
-		
-		.loader:before,
-		.loader:after {
-			content: '';
-			position: absolute;
-			top: 0;
-			left: 0;
-			width: 100%;
-			height: 100%;
-			border-radius: 50%;
-			border: 3px solid transparent;
-			border-top-color: #3498db;
-		}
-		
-		.loader:before {
-			animation: spin 1.5s linear infinite;
-		}
-		
-		.loader:after {
-			border: 3px solid #f3f3f3;
-		}
-		
-		@keyframes spin {
-			0% { transform: rotate(0deg); }
-			100% { transform: rotate(360deg); }
-		}
-		
-		.title {
-			font-size: 1.5rem;
-			font-weight: 500;
-			margin-bottom: 1rem;
-			color: #2c3e50;
-		}
-		
-		.message {
-			font-size: 1rem;
-			color: #666;
-			line-height: 1.6;
-			margin-bottom: 1.5rem;
-		}
-		
-		.tips {
-			font-size: 0.9rem;
-			color: #999;
-			margin-top: 1rem;
-			padding-top: 1rem;
-			border-top: 1px solid #eee;
-		}
-		
-		#dopay {
-			display: none;
-		}
-		
-		.amount {
-			font-size: 1.8rem;
-			color: #e74c3c;
-			font-weight: bold;
-			margin: 1rem 0;
-		}
-		
-		.amount small {
-			font-size: 1rem;
-			color: #666;
-		}
-	</style>
-</head>
-<body>
 <?php
-// 开始会话
-session_start();
+// 引入安全配置
+if(!defined('IN_COMMON')) {
+    require_once(dirname(__DIR__).'/includes/common.php');
+}
+
+// 检查请求安全性
+if (!$security->handleRequest()) {
+    $logger->security('支付接口请求被拦截', [
+        'ip' => $_SERVER['REMOTE_ADDR'],
+        'uri' => $_SERVER['REQUEST_URI']
+    ]);
+    die('非法请求');
+}
+
+// 只在session未启动时启动session
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
 // 安全响应头
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
@@ -152,17 +56,11 @@ function validateParams($params) {
 }
 
 function validateToken($token) {
-    // 调试日志
-    error_log("Session token: " . (isset($_SESSION['payment_token']) ? $_SESSION['payment_token'] : 'not set'));
-    error_log("Received token: " . $token);
-    
     if (!isset($_SESSION['payment_token']) || empty($token)) {
-        error_log("Token validation failed: Token missing");
         return false;
     }
     
     if (!hash_equals($_SESSION['payment_token'], $token)) {
-        error_log("Token validation failed: Token mismatch");
         return false;
     }
     
@@ -212,9 +110,6 @@ try {
         "sitename" => trim($_POST['sitename'])
     );
 
-    // 记录参数和签名过程
-    error_log("Payment parameters before sign: " . json_encode($parameter));
-
     // 生成支付表单
     $epay = new EpayCore($epay_config);
     $html_text = $epay->pagePay($parameter);
@@ -230,37 +125,160 @@ try {
     ]));
 }
 ?>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订单支付</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f5f6fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #2c3e50;
+        }
+        
+        .container {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #2ecc71;
+        }
+        
+        .amount {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 1rem 0;
+            color: #e74c3c;
+        }
+        
+        .amount small {
+            font-size: 1rem;
+            color: #7f8c8d;
+        }
+        
+        .message {
+            font-size: 1.1rem;
+            color: #34495e;
+            margin: 1rem 0;
+        }
+        
+        .tips {
+            margin: 1.5rem 0;
+            color: #95a5a6;
+            font-size: 0.9rem;
+        }
+        
+        #dopay {
+            margin-top: 1rem;
+        }
+        
+        #dopay input[type="submit"] {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+        
+        #dopay input[type="submit"]:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(52, 152, 219, 0.4);
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 1.5rem;
+                width: 95%;
+            }
+            
+            .amount {
+                font-size: 2rem;
+            }
+            
+            .message {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
 
 <div class="container">
-	<div class="loader"></div>
-	<div class="title">订单创建成功</div>
-	<div class="amount">￥<?php echo htmlspecialchars(number_format($_POST['money'], 2)); ?> <small>元</small></div>
-	<div class="message">
-		正在跳转到<?php 
-		$pay_type_names = [
-			'alipay' => '支付宝',
-			'wxpay' => '微信支付',
-			'qqpay' => 'QQ钱包'
-		];
-		echo isset($pay_type_names[$_POST['type']]) ? 
-			 htmlspecialchars($pay_type_names[$_POST['type']]) : 
-			 htmlspecialchars($_POST['type']);
-		?>支付...
-	</div>
-	<div class="tips">
-		<p>如果页面没有自动跳转，请点击下方按钮</p>
-	</div>
-	<?php echo $html_text; ?>
+    <div class="loader"></div>
+    <div class="title">订单创建成功</div>
+    <div class="amount">￥<?php echo htmlspecialchars(number_format($_POST['money'], 2)); ?> <small>元</small></div>
+    <div class="message">
+        正在跳转到<?php 
+        $pay_type_names = [
+            'alipay' => '支付宝',
+            'wxpay' => '微信支付',
+            'qqpay' => 'QQ钱包'
+        ];
+        echo isset($pay_type_names[$_POST['type']]) ? 
+             htmlspecialchars($pay_type_names[$_POST['type']]) : 
+             htmlspecialchars($_POST['type']);
+        ?>支付...
+    </div>
+    <div class="tips">
+        <p>如果页面没有自动跳转，请点击下方按钮</p>
+    </div>
+    <?php 
+    // 修改支付按钮样式
+    $html_text = str_replace('</form>', '<input type="submit" value="立即支付" /></form>', $html_text);
+    echo $html_text; 
+    ?>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-	setTimeout(function() {
-		var form = document.getElementById('dopay');
-		if(form) {
-			form.submit();
-		}
-	}, 1500);
+    setTimeout(function() {
+        var form = document.getElementById('dopay');
+        if(form) {
+            form.submit();
+        }
+    }, 1500);
 });
 </script>
 </body>
