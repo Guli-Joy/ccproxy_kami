@@ -153,6 +153,7 @@ function deldir($path = '../install')
     <link rel="shortcut icon" href="../favicon.ico">
 
     <!-- App css -->
+    <link href="../assets/css/app.min.css" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../assets/layui/css/layui.css" />
     <link rel="stylesheet" href="../assets/css/install.css">
 </head>
