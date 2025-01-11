@@ -1,12 +1,12 @@
 <?php
 /*
- * @Author: yihua
+ * @Author: guli
  * @Date: 2022-06-25 19:37:15
  * @LastEditTime: 2022-08-23 17:15:04
- * @LastEditors: yihua
+ * @LastEditors: guli
  * @Description: 
  * @FilePath: \ccpy\install\class.php
- * 一花一叶 一行代码
+ * 
  */
 
 /**

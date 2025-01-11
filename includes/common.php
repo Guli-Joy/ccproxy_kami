@@ -11,10 +11,10 @@ if (defined('IN_CRONLITE')) {
 }
 define('CACHE_FILE', 0);
 define('IN_CRONLITE', true);
-define('VERSION', '1.4s');//版本号
+define('VERSION', 'v4');//版本号
 define('SYSTEM_ROOT', dirname(__FILE__).'/');//定义域名泛解析用于访问文件
 define('ROOT', dirname(SYSTEM_ROOT).'/');
-define('SYS_KEY', 'yihuaiccp');//定义一个常量
+define('SYS_KEY', 'guliiccp');//定义一个常量
 define('CC_Defender', 1); //防CC攻击开关(1为session模式)
 define('is_defend', true); //防CC攻击开关(1为session模式)
 define('TIMESTAMP',time());

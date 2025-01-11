@@ -1,9 +1,9 @@
 <?php
 /*
- * @Author: yihua
+ * @Author: guli
  * @Date: 2025-01-04 17:32:11
  * @LastEditTime: 2025-01-11 13:34:11
- * @LastEditors: yihua
+ * @LastEditors: guli
  * @Description: 现代化的Web应用安全防护模块
  * @Version: 2.0.0
  * @Security Level: High
