@@ -6,18 +6,18 @@
 class Logger {
     private static $instance = null;
     private $logFile;
-    
+
     private function __construct() {
-        $this->logFile = dirname(__DIR__) . '/logs/error.log';
+        $this->logFile = dirname(__DIR__) . '/logs/error/error.log';
     }
-    
+
     public static function getInstance() {
         if (self::$instance === null) {
             self::$instance = new self();
         }
         return self::$instance;
     }
-    
+
     private function log($level, $message, $context = array()) {
         $date = date('d-M-Y H:i:s T');
         $contextStr = print_r($context, true);
@@ -73,7 +73,7 @@ class Logger {
     public function debug($message, $context = array()) {
         $this->log('DEBUG', $message, $context);
     }
-    
+
     private function __clone() {}
     private function __wakeup() {}
 } 
