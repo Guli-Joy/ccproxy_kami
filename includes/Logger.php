@@ -9,6 +9,12 @@ class Logger {
 
     private function __construct() {
         $this->logFile = dirname(__DIR__) . '/logs/error/error.log';
+        
+        // 确保日志目录存在
+        $logDir = dirname($this->logFile);
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
     }
 
     public static function getInstance() {
@@ -18,40 +24,74 @@ class Logger {
         return self::$instance;
     }
 
+    private function getClientIPs() {
+        $ips = [];
+        
+        // 获取直接IP
+        $direct_ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $ips[] = $direct_ip;
+        
+        // 获取真实IP
+        if (function_exists('x_real_ip')) {
+            $real_ip = x_real_ip();
+            if ($real_ip && $real_ip !== $direct_ip) {
+                $ips[] = $real_ip;
+            }
+        }
+        
+        // 处理代理IP
+        if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $proxy_ips = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+            foreach ($proxy_ips as $ip) {
+                if ($ip && !in_array($ip, $ips)) {
+                    $ips[] = $ip;
+                }
+            }
+        }
+        
+        return array_unique($ips);
+    }
+
     private function log($level, $message, $context = array()) {
         $date = date('d-M-Y H:i:s T');
-        $contextStr = print_r($context, true);
+        $ips = $this->getClientIPs();
         
-        $logEntry = "[$date] Array\n(\n";
-        $logEntry .= "    [datetime] => " . date('Y-m-d H:i:s') . "\n";
-        $logEntry .= "    [level] => " . strtoupper($level) . "\n";
-        $logEntry .= "    [message] => $message\n";
-        $logEntry .= "    [ip] => " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . "\n";
-        $logEntry .= "    [real_ip] => " . (function_exists('x_real_ip') ? x_real_ip() : 'unknown') . "\n";
-        $logEntry .= "    [uri] => " . ($_SERVER['REQUEST_URI'] ?? '') . "\n";
-        $logEntry .= "    [user] => " . ($_SESSION['admin_user'] ?? 'guest') . "\n";
-        $logEntry .= "    [user_agent] => " . ($_SERVER['HTTP_USER_AGENT'] ?? '') . "\n";
-        $logEntry .= "    [referer] => " . ($_SERVER['HTTP_REFERER'] ?? '') . "\n";
-        $logEntry .= "    [method] => " . ($_SERVER['REQUEST_METHOD'] ?? '') . "\n";
-        $logEntry .= "    [context] => " . $contextStr . "\n";
-        $logEntry .= ")\n\n";
+        // 合并相关的上下文信息
+        $context['ips'] = $ips;
+        if (isset($context['event_type']) && $context['event_type'] === 'IP_BLOCKED') {
+            $message = sprintf("IP访问被拒绝: %s", implode(', ', $ips));
+        }
         
-        // 添加JSON格式的日志
-        $jsonLog = json_encode([
+        $logData = [
             'datetime' => date('Y-m-d H:i:s'),
             'level' => strtoupper($level),
             'message' => $message,
-            'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-            'real_ip' => function_exists('x_real_ip') ? x_real_ip() : 'unknown',
+            'ip' => $ips[0],
+            'all_ips' => $ips,
             'uri' => $_SERVER['REQUEST_URI'] ?? '',
             'user' => $_SESSION['admin_user'] ?? 'guest',
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
             'referer' => $_SERVER['HTTP_REFERER'] ?? '',
             'method' => $_SERVER['REQUEST_METHOD'] ?? '',
             'context' => $context
-        ]) . "\n";
+        ];
         
-        file_put_contents($this->logFile, $logEntry . $jsonLog, FILE_APPEND | LOCK_EX);
+        // 生成Array格式日志
+        $arrayLog = "[$date] Array\n(\n";
+        foreach ($logData as $key => $value) {
+            if (is_array($value)) {
+                $arrayLog .= "    [$key] => " . print_r($value, true);
+            } else {
+                $arrayLog .= "    [$key] => $value\n";
+            }
+        }
+        $arrayLog .= ")\n\n";
+        
+        // 生成JSON格式日志
+        $jsonLog = json_encode($logData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+        
+        // 写入日志
+        file_put_contents($this->logFile, $arrayLog . $jsonLog, FILE_APPEND | LOCK_EX);
     }
     
     public function error($message, $context = array()) {

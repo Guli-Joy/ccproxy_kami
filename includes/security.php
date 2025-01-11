@@ -64,14 +64,18 @@ class Security {
     private function isIpAllowed($ip) {
         global $DEV_MODE, $DEV_ALLOWED_IPS, $ALLOWED_IPS;
         
-        // 开发模式下的IP检查
+        // 1. 检查是否在白名单中
+        if (in_array($ip, $ALLOWED_IPS)) {
+            return true;
+        }
+        
+        // 2. 开发模式下的IP检查
         if ($DEV_MODE) {
             // 检查是否为内网IP
             if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
                 return true;
             }
             
-            // 检查是否在开发环境白名单中
             foreach ($DEV_ALLOWED_IPS as $allowed) {
                 if (strpos($allowed, '*') !== false) {
                     $pattern = str_replace('*', '\d+', $allowed);
@@ -84,7 +88,15 @@ class Security {
             }
         }
         
-        return in_array($ip, $ALLOWED_IPS);
+        // 3. 检查是否为合法的公网IP
+        if (filter_var($ip, FILTER_VALIDATE_IP)) {
+            // 检查是否为恶意IP（可以在这里添加IP黑名单检查）
+            if (!SecurityFilter::isIpBanned($ip)) {
+                return true;  // 允许所有非黑名单的合法公网IP访问
+            }
+        }
+        
+        return false;
     }
     
     /**
@@ -95,37 +107,44 @@ class Security {
             $ip = $_SERVER['REMOTE_ADDR'];
             $realIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $ip;
             
-            // 开发环境IP检查
+            // IP检查 - 只要有一个IP通过验证就允许访问
             if (!$this->isIpAllowed($ip) && !$this->isIpAllowed($realIp)) {
-                $this->logSecurityEvent('IP_BLOCKED', "IP访问被拒绝: $ip, $realIp");
-                return false;
+                // 记录被拒绝的访问，但不立即阻止
+                $this->logSecurityEvent('IP_CHECK', "IP访问记录: $ip, $realIp");
+                
+                // 检查是否为移动设备访问
+                $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+                $isMobile = preg_match('/(Mobile|Android|iPhone|iPad)/i', $userAgent);
+                
+                if ($isMobile) {
+                    // 移动设备访问时放行
+                    $this->logSecurityEvent('MOBILE_ACCESS', "移动设备访问放行: $ip");
+                } else {
+                    // 可疑IP的访问频率限制
+                    if (!$this->checkRateLimit()) {
+                        throw new Exception("请求过于频繁");
+                    }
+                }
             }
             
-            // 2. 请求频率检查
-            if (!$this->checkRateLimit()) {
-                throw new Exception("请求过于频繁");
-            }
-            
-            // 3. 路径检查
+            // 其他安全检查
             if (!$this->checkPath($_SERVER['REQUEST_URI'])) {
                 throw new Exception("非法访问路径");
             }
             
-            // 4. 输入过滤
+            // 输入过滤
             $_GET = SecurityFilter::xssClean($_GET);
             $_POST = SecurityFilter::xssClean($_POST);
             $_COOKIE = SecurityFilter::xssClean($_COOKIE);
             
-            // 5. CSRF检查 - 修改验证逻辑
+            // CSRF检查
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                // 检查是否为API请求或Ajax请求
                 $isApiRequest = strpos($_SERVER['REQUEST_URI'], '/api/') === 0;
                 $isAjaxRequest = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && 
                                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
                 $isSubAdminRequest = strpos($_SERVER['REQUEST_URI'], '/sub_admin/') === 0;
                 
-                // 对于API请求、Ajax请求和后台请求使用不同的验证策略
-                if (!$isApiRequest && !$isSubAdminRequest) {
+                if (!$isApiRequest && !$isSubAdminRequest && !$isAjaxRequest) {
                     $csrfToken = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
                     if (!$this->validateCsrfToken($csrfToken)) {
                         $this->logSecurityEvent('CSRF_FAILED', "CSRF验证失败", [
