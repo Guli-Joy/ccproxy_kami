@@ -65,7 +65,6 @@ if (!empty($missing_extensions)) {
 $check_dirs = [
     '../' => '根目录',
     '../config.php' => '配置文件',
-    '../cache/' => '缓存目录',
     '../logs/' => '日志目录'
 ];
 
@@ -640,7 +639,7 @@ function deldir($path = '../install')
                                                                                 <td>目录写入权限</td>
                                                                                 <td>必须</td>
                                                                                 <td><?php 
-                                                                                    $write_dirs = ['../cache/', '../logs/', '../config.php'];
+                                                                                    $write_dirs = ['../logs/', '../config.php'];
                                                                                     $write_check = true;
                                                                                     foreach($write_dirs as $dir) {
                                                                                         if(!is_writable($dir)) {
@@ -927,8 +926,43 @@ function deldir($path = '../install')
                                         }
                                     });
                                 }, function() {
-                                    // 跳过，直接进入安装成功页面
-                                    window.location.href = 'index.php?type=installok';
+                                    // 跳过时也更新数据库配置
+                                    var skipIndex = layer.msg('正在更新数据库配置...', {
+                                        icon: 16,
+                                        time: 999999
+                                    });
+                                    $.ajax({
+                                        url: 'ajax.php?act=update_config',
+                                        type: 'POST', 
+                                        data: data.field,
+                                        dataType: 'json',
+                                        success: function(res) {
+                                            layer.close(skipIndex);
+                                            if(res.code == 1) {
+                                                layer.msg('配置更新成功!<br>3秒后自动跳转...', {
+                                                    icon: 1,
+                                                    time: 3000,
+                                                    shade: 0.3,
+                                                    shadeClose: false,
+                                                    end: function() {
+                                                        window.location.href = 'index.php?type=installok';
+                                                    }
+                                                });
+                                            } else {
+                                                layer.alert(res.msg, {
+                                                    icon: 2,
+                                                    title: '配置更新失败'
+                                                });
+                                            }
+                                        },
+                                        error: function(xhr) {
+                                            layer.close(skipIndex);
+                                            layer.alert('配置更新请求失败！', {
+                                                icon: 2,
+                                                title: '错误'
+                                            });
+                                        }
+                                    });
                                 }, function() {
                                     // 取消操作，什么都不做
                                 });

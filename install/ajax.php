@@ -440,4 +440,34 @@ switch ($act) {
         
         die(json_encode(['code' => 1, 'msg' => '文件检查通过']));
         break;
+    case 'update_config':
+        $host=isset($_POST['host'])?$_POST['host']:null;
+        $port=isset($_POST['port'])?$_POST['port']:null;
+        $user=isset($_POST['user'])?$_POST['user']:null;
+        $pwd=isset($_POST['pwd'])?$_POST['pwd']:null;
+        $dbname=isset($_POST['dbname'])?$_POST['dbname']:null;
+        
+        if($host==null || $port==null || $user==null || $pwd==null || $dbname==null){
+            exit('{"code":-1,"msg":"请填写完整！"}');
+        }
+        
+        try {
+            $config_file = '../config.php';
+            $config_content = "<?php
+/*数据库配置*/
+\$dbconfig=array(
+    'host' => '{$host}', //数据库服务器
+    'port' => {$port}, //数据库端口
+    'user' => '{$user}', //数据库用户名
+    'pwd' => '{$pwd}', //数据库密码
+    'dbname' => '{$dbname}', //数据库名
+);
+?>";
+            if(!file_put_contents($config_file, $config_content)){
+                exit('{"code":-1,"msg":"配置文件写入失败,请检查文件权限！"}');
+            }
+            exit('{"code":1,"msg":"配置更新成功！"}');
+        } catch (Exception $e) {
+            exit('{"code":-1,"msg":"配置更新失败:'.$e->getMessage().'"}');
+        }
 } 
