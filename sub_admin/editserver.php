@@ -82,7 +82,7 @@ $comment=$_REQUEST["comment"];
 			<span class="layui-must">*</span>
 		</label>
 		<div class="layui-input-inline">
-		<input type="checkbox" name="state" value="<?=$state;?>" lay-skin="switch" lay-text="开启|关闭" lay-filter="state" <?=$state=="1" ? "checked" :"";?>/>
+		<input type="checkbox" name="state" lay-skin="switch" lay-text="开启|关闭" lay-filter="state" <?=$state=="1" ? "checked" :"";?>/>
 		</div>
 	</div>
 	<div class="layui-form-item">
@@ -139,38 +139,22 @@ $comment=$_REQUEST["comment"];
 			form = layui.form,
 			laydate = layui.laydate;
 			
-			console.log($("[name=use_date]").eq(0).val('<?=$use_date;?>'));
-			form.render("input");
-			// form.on('select(expire)', function(data) {
-			// 	// console.log(data.value==-1?$(da):)
-			// 	if(data.value==-1){
-			// 		$(".usetime").eq(0).css("display","block");
-			// 	}
-			// 	else{
-			// 		$(".usetime").eq(0).css("display","none");
-			// 	}
-	
-			// 	// var duration = Number(data.value);
-			// 	// var price = duration * unit;
-			// });
+		form.render();
+		
 		$(".layui-input").eq(0).focus();
+		
 		form.on("submit(submit)", function(data) {
-			//console.log(data.field)
-			// if(data.field.expire==-1){
-			// 		if(data.field.use_date==""){
-			// 		layer.msg("自定义时长不能为空！", {
-			// 				icon: 5
-			// 			});
-			// 			return;
-			// 		}
-			// 	}
-			// console.log(data);
+			console.log("表单提交", data.field);
+			
+			var formData = data.field;
+			formData.state = formData.state ? "1" : "0";
+			
 			$.ajax({
 				url: "ajax.php?act=editserver",
 				type: "POST",
 				dataType: "json",
 				data: {
-					data: data.field
+					data: formData
 				},
 				beforeSend: function() {
 					layer.msg("正在提交", {
@@ -179,108 +163,36 @@ $comment=$_REQUEST["comment"];
 						time: false
 					});
 				},
-				success: function(data) {
-					if (data.code == "1") {
+				success: function(res) {
+					layer.closeAll('loading');
+					if (res.code == "1") {
 						parent.layer.closeAll();
-						parent.layer.msg(data.msg, {
+						parent.layer.msg(res.msg, {
 							icon: 1
 						});
 						setTimeout(function(){
-							window.parent.frames.reload('server_list');
+							parent.location.reload();
 						},100);
 					} else {
-						layer.msg(data.msg == null ? "未知错误" : data.msg, {
+						layer.msg(res.msg || "未知错误", {
 							icon: 5
 						});
 					}
-					console.log(data);
-					// if (data.icon == "1") {
-
-					// } else {
-					// 	layer.msg(data.code, {
-					// 		icon: data.icon
-					// 	});
-					// }
 				},
-				error: function(data) {
-					console.log(data);
-					layer.msg("编辑数据失败", {
+				error: function(xhr, status, error) {
+					layer.closeAll('loading');
+					console.log("提交错误", error);
+					layer.msg("编辑数据失败: " + error, {
 						icon: 5
 					});
 				}
 			});
 			return false;
 		});
-
-		// function select() {
-		// 	$.ajax({
-		// 		url: "ajax.php?act=getapp",
-		// 		type: "POST",
-		// 		dataType: "json",
-		// 		success: function(data) {
-		// 			if (data.code == "1") {
-		// 				var elem = $("[name=app]");
-		// 				for (var key in data.msg) {
-		// 					var json = data.msg[key],
-		// 						appname = json.appname,
-		// 						appcode = json.appcode;
-		// 					item = '<option value="' + appcode + '">' + appname + '</option>';
-		// 					elem.append(item);
-		// 				}
-		// 				form.render("select");
-		// 			}
-		// 		},
-		// 		error: function(data) {
-		// 			layer.msg("获取用户失败", {
-		// 				icon: 5
-		// 			});
-		// 		}
-		// 	});
-		// };
-		laydate.render({
-				elem: "[name=use_date]",
-				format: "yyyy-MM-dd HH:mm:ss",
-				//range: true,
-				done: function(e) {
-					// setTimeout(function() {
-					// 	window.parent.frames.reload('server_list');
-					// }, 1000);
-				}
-			});
-		// laydate.render({
-		// 	elem: "[name=end_date]",
-		// 	type: "datetime"
-		// });
-
-		// function select() {
-		// 	$.ajax({
-		// 		url: "ajax.php?act=getserver",
-		// 		type: "POST",
-		// 		dataType: "json",
-		// 		success: function(data) {
-		// 			 if (data.code == "1") {
-		// 				var elem = $("[name=server]");
-		// 				for (var key in data.msg) {
-
-		// 					// console.log(data.msg[key]);
-		// 					 var json = data.msg[key],
-		// 					 	comment = json.comment,
-		// 					 	ip = json.ip;
-		// 						item = '<option value="' + ip + '">' + comment + '[' + ip + ']</option>';
-		// 						elem.append(item);
-		// 				}
-		// 				form.render("select");
-		// 			}
-		// 		},
-		// 		error: function(data) {
-		// 			// console.log(data);
-		// 			layer.msg("获取服务器失败", {
-		// 				icon: 5
-		// 			});
-		// 		}
-		// 	});
-		// }
-		//select();
+		
+		form.on('switch(state)', function(data){
+			console.log("开关状态改变", data.elem.checked);
+		});
 	});
 </script>
 

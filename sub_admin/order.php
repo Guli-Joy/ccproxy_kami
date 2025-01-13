@@ -19,9 +19,64 @@ if (!($islogin == 1)) {
     <div class="layui-fluid">
         <div class="layui-row layui-col-space15">
             <div class="layui-col-md12">
-                <div class="layui-card"><br><br>
+                <div class="layui-card">
                     <div class="layui-card-header">订单管理</div>
                     <div class="layui-card-body">
+                        <!-- 搜索表单 -->
+                        <form class="layui-form layui-form-pane" action="">
+                            <div class="layui-form-item">
+                                <div class="layui-inline">
+                                    <label class="layui-form-label">订单号</label>
+                                    <div class="layui-input-inline">
+                                        <input type="text" name="order_no" autocomplete="off" class="layui-input">
+                                    </div>
+                                </div>
+                                <div class="layui-inline">
+                                    <label class="layui-form-label">应用名称</label>
+                                    <div class="layui-input-inline">
+                                        <input type="text" name="appname" autocomplete="off" class="layui-input">
+                                    </div>
+                                </div>
+                                <div class="layui-inline">
+                                    <label class="layui-form-label">账号</label>
+                                    <div class="layui-input-inline">
+                                        <input type="text" name="account" autocomplete="off" class="layui-input">
+                                    </div>
+                                </div>
+                                <div class="layui-inline">
+                                    <label class="layui-form-label">支付状态</label>
+                                    <div class="layui-input-inline">
+                                        <select name="status">
+                                            <option value="">全部</option>
+                                            <option value="0">未支付</option>
+                                            <option value="1">已支付</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="layui-inline">
+                                    <label class="layui-form-label">支付方式</label>
+                                    <div class="layui-input-inline">
+                                        <select name="pay_type">
+                                            <option value="">全部</option>
+                                            <option value="alipay">支付宝</option>
+                                            <option value="wxpay">微信支付</option>
+                                            <option value="qqpay">QQ钱包</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="layui-inline">
+                                    <label class="layui-form-label">创建时间</label>
+                                    <div class="layui-input-inline">
+                                        <input type="text" name="create_time" class="layui-input" id="create_time" placeholder="选择日期范围">
+                                    </div>
+                                </div>
+                                <div class="layui-inline">
+                                    <button class="layui-btn" lay-submit lay-filter="search">搜索</button>
+                                    <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+                                </div>
+                            </div>
+                        </form>
+                        
                         <div class="layui-btn-group">
                             <button class="layui-btn layui-btn-sm layui-btn-danger" id="delSelected">批量删除</button>
                         </div>
@@ -52,12 +107,21 @@ if (!($islogin == 1)) {
     
     <script src="../assets/layui/layui.js"></script>
     <script>
-    layui.use(['table', 'layer', 'form', 'jquery'], function(){
+    layui.use(['table', 'layer', 'form', 'laydate', 'jquery'], function(){
         var table = layui.table
         ,layer = layui.layer
         ,form = layui.form
+        ,laydate = layui.laydate
         ,$ = layui.jquery;
         
+        // 日期范围选择器
+        laydate.render({
+            elem: '#create_time'
+            ,type: 'datetime'
+            ,range: true
+        });
+        
+        // 表格渲染
         table.render({
             elem: '#order-table'
             ,url: 'ajax.php?act=getOrders'
@@ -82,7 +146,7 @@ if (!($islogin == 1)) {
             ]]
             ,parseData: function(res) {
                 return {
-                    "code": res.code === 1 ? 0 : res.code, // layui要求成功的状态码为 0
+                    "code": res.code === 1 ? 0 : res.code,
                     "msg": res.msg,
                     "count": res.count,
                     "data": res.data
@@ -98,6 +162,21 @@ if (!($islogin == 1)) {
             ,text: {
                 none: '暂无订单数据'
             }
+        });
+
+        // 搜索功能
+        form.on('submit(search)', function(data){
+            var field = data.field;
+            
+            // 重载表格
+            table.reload('order-table', {
+                where: field
+                ,page: {
+                    curr: 1
+                }
+            });
+            
+            return false;
         });
 
         // 批量删除
