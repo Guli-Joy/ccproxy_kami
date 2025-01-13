@@ -1007,7 +1007,7 @@ switch ($act) {
             $server = $DB->selectRow("select ip,serveruser,password,cport from server_list where ip='" . $usermodel['serverip'] . "'"); //$ip['serverip']服务器IP
             //print($server["password"]."".$server["cport"]."".$server["ip"]."".$usermodel["user"]."".$usermodel["pwd"]."".$usermodel["day"]);
             $result = UserUpdate($server["password"], $server["cport"], $server["ip"], $usermodel["olduser"], $usermodel["pwd"], $usermodel["day"],$usermodel["connection"],$usermodel["bandwidthup"]<=0?-1:$usermodel["bandwidthup"]*1024,$usermodel["bandwidthdown"]<=0?-1:$usermodel["bandwidthdown"]*1024,"0",$usermodel["newuser"]);
-            WriteLog("用户编辑", "编辑了" . $usermodel, $subconf['username'], $DB);
+            WriteLog("用户编辑", "编辑了" . json_encode($usermodel, JSON_UNESCAPED_UNICODE), $subconf['username'], $DB);
             exit(json_encode($result, JSON_UNESCAPED_UNICODE));
         }
         break;
@@ -1064,7 +1064,7 @@ switch ($act) {
                 "msg" => "删除部分!未删除数：" . ($znum - $zxnum),
             ];
         }
-            WriteLog("批量删除用户", "删除" . $deldata, $subconf['username'], $DB);
+            WriteLog("批量删除用户", "删除" . json_encode($deldata, JSON_UNESCAPED_UNICODE), $subconf['username'], $DB);
         exit(json_encode($code, JSON_UNESCAPED_UNICODE));
         break;
     case 'adduser':
@@ -1080,7 +1080,7 @@ switch ($act) {
                 "msg" => "添加失败参数为空或者有误!",
             ];
         }
-        WriteLog("添加用户", "添加了" . $user_data, $subconf['username'], $DB);
+        WriteLog("添加用户", "添加了" . json_encode($user_data, JSON_UNESCAPED_UNICODE), $subconf['username'], $DB);
         exit(json_encode($code, JSON_UNESCAPED_UNICODE));
         break;
     case 'upswitchuser':

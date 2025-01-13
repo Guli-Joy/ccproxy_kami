@@ -5,14 +5,14 @@ if (!($islogin == 1)) {
 	exit('<script language=\'javascript\'>alert("您还没有登录，请先登录！");window.location.href=\'login.php\';</script>');
 }
 
-$olduser=$_REQUEST["user"];
-$newuser=$_REQUEST["user"];
-$pwd=$_REQUEST["pwd"];
-$use_date=$_REQUEST["use_date"];
-$serverip=$_REQUEST["serverip"];
-$connection=$_REQUEST["connection"]=="无限制"?-1:$_REQUEST["connection"];
-$bandwidthup=$_REQUEST["bandwidthup"]=="无限制"?-1:$_REQUEST["bandwidthup"];
-$bandwidthdown=$_REQUEST["bandwidthdown"]=="无限制"?-1:$_REQUEST["bandwidthdown"];
+$olduser = isset($_REQUEST["user"]) ? $_REQUEST["user"] : '';
+$newuser = isset($_REQUEST["user"]) ? $_REQUEST["user"] : '';
+$pwd = isset($_REQUEST["pwd"]) ? $_REQUEST["pwd"] : '';
+$use_date = isset($_REQUEST["use_date"]) ? $_REQUEST["use_date"] : '';
+$serverip = isset($_REQUEST["serverip"]) ? $_REQUEST["serverip"] : '';
+$connection = isset($_REQUEST["connection"]) ? ($_REQUEST["connection"]=="无限制" ? -1 : $_REQUEST["connection"]) : -1;
+$bandwidthup = isset($_REQUEST["bandwidthup"]) ? ($_REQUEST["bandwidthup"]=="无限制" ? -1 : $_REQUEST["bandwidthup"]) : -1;
+$bandwidthdown = isset($_REQUEST["bandwidthdown"]) ? ($_REQUEST["bandwidthdown"]=="无限制" ? -1 : $_REQUEST["bandwidthdown"]) : -1;
 ?>
 <!DOCTYPE html>
 <html>
@@ -152,7 +152,7 @@ $bandwidthdown=$_REQUEST["bandwidthdown"]=="无限制"?-1:$_REQUEST["bandwidthdo
 			// 	else{
 			// 		$(".usetime").eq(0).css("display","none");
 			// 	}
-	
+		
 			// 	// var duration = Number(data.value);
 			// 	// var price = duration * unit;
 			// });

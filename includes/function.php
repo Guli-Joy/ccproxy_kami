@@ -404,18 +404,19 @@ function UserUpdate($adminpassword, $adminport, $proxyaddress, $user, $password,
     }
 }
 /**
- * @description: 匹配是否有中文
+ * @description: 验证用户名是否合法（只允许字母、数字和下划线）
  * @param {*} $str
  * @return {*}
  * @use: 
  */
 function CheckStrChinese($str)
 {
-    $isMatched = preg_match_all('/^[A-Za-z0-9]+$/', $str);
-    if ($isMatched&&(!empty($str))) {
-        return true;
+    if(empty($str)) {
+        return false;
     }
-    return false;
+    // 允许字母、数字和下划线
+    $isMatched = preg_match('/^[A-Za-z0-9_-]+$/', $str);
+    return $isMatched === 1;
 }
 /**
  * @description: 匹配密码密码可以包含数字、字母、下划线，并且要同时含有数字和字母，且长度要在8-16位之间!
@@ -436,49 +437,52 @@ function ForServer($server, $user)
    try {
     $user_arr = array();
     foreach ($server as $key => $value) {
-        // Array_push($user_arr,(queryuserall($value["password"],$value["cport"],$value["ip"])));
         $alldata = queryuserall($value["password"], $value["cport"], $value["ip"]);
-        for ($j = 0; $j <= count($alldata); $j++) {
-            if (empty($alldata[$j]['user'])) {
-                continue;
+        if (!$alldata) {
+            continue;
+        }
+        if (is_array($alldata)) {
+            foreach ($alldata as $userData) {
+                if (empty($userData['user'])) {
+                    continue;
+                }
+                $getdata = array(
+                    "id" => $userData['id'],
+                    "user" => $userData['user'],
+                    "pwd" => $userData['pwd'],
+                    "state" => $userData['state'],
+                    "pwdstate" => $userData['pwdstate'],
+                    "disabletime" => $userData['disabletime'],
+                    "expire" => $userData['expire'],
+                    "user" => $userData['user'],
+                    'serverip' => $value["ip"],
+                    "connection" => isset($userData['connection']) ? $userData['connection'] : -1,
+                    "bandwidthup" => isset($userData['bandwidthup']) ? $userData['bandwidthup'] : -1,
+                    "bandwidthdown" => isset($userData['bandwidthdown']) ? $userData['bandwidthdown'] : -1,
+                    "autodisable" => isset($userData['autodisable']) ? $userData['autodisable'] : 1
+                );
+                $user_arr[] = $getdata;
             }
-            $getdata = array(
-                "id" => $alldata[$j]['id'],
-                "user" => $alldata[$j]['user'],
-                "pwd" => $alldata[$j]['pwd'],
-                "state" => $alldata[$j]['state'],
-                "pwdstate" => $alldata[$j]['pwdstate'],
-                "disabletime" => $alldata[$j]['disabletime'],
-                "expire" => $alldata[$j]['expire'],
-                "user" => $alldata[$j]['user'],
-                'serverip' => $value["ip"],
-                "connection"=>$alldata[$j]['connection'],
-                "bandwidthup"=>$alldata[$j]['bandwidthup'],
-                "bandwidthdown"=>$alldata[$j]['bandwidthdown'],
-                "autodisable"=>$alldata[$j]['autodisable']
-            );
-           // var_dump($getdata);
-            array_push($user_arr, $getdata);
         }
     }
-    // $count=count($user_arr)-1;
-    // $user_merge=array();
-    // for ($i=0; $i < $count;$i++) { 
-    //     if($i>=$count){
-    //         break;
-    //     }
-    //    // print_r($i."".$count);
-    //     $user_merge= array_merge($user_arr[$i],$user_arr[$i+1]);
-    // }
-    // print_r($user_merge);
+    
+    if (empty($user_arr)) {
+        yield [["code" => "-1", "msg" => "未找到任何用户数据", "icon" => "5"]];
+        return;
+    }
+
     if (!empty($user)) {
-        yield userquery($user, $user_arr);
+        $filtered = userquery($user, $user_arr);
+        if (empty($filtered)) {
+            yield [["code" => "-1", "msg" => "未找到匹配的用户", "icon" => "5"]];
+            return;
+        }
+        yield $filtered;
     } else {
         yield $user_arr;
     }
-    // return yield userquery($user,$user_arr);
-   } catch (Exception  $th) {
-     yield null;
+   } catch (Exception $th) {
+     yield [["code" => "-1", "msg" => "处理用户数据时出错: " . $th->getMessage(), "icon" => "5"]];
    }
 }
 /***
@@ -492,13 +496,17 @@ function SerchearchAllServer($app, $user, $DB)
     $serverarr = array();
     foreach ($ip as $valuel) {
         $server = $DB->selectRow("select ip,serveruser,password,cport from server_list where ip='" . $valuel['serverip'] . "'"); //$ip['serverip']服务器IP
-        Array_push($serverarr, $server);
+        if($server) {
+            Array_push($serverarr, $server);
+        }
     };
+    if(empty($serverarr)) {
+        yield [["code" => "-1", "msg" => "未找到有效的服务器", "icon" => "5"]];
+        return;
+    }
     yield from ForServer($serverarr, $user);
-   } catch (Exception  $th) {
-    //yield null;
-   // throw $th;
-   return ["code" => "-1", "msg"=>"无法连接到CCProxy", "icon" => "5"];
+   } catch (Exception $th) {
+    yield [["code" => "-1", "msg" => "无法连接到CCProxy: " . $th->getMessage(), "icon" => "5"]];
    }
 }
 /**
