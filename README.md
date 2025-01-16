@@ -6,6 +6,7 @@
 [![Version](https://img.shields.io/badge/version-V4-brightgreen.svg?style=flat-square)](https://github.com/Guli-Joy/ccproxy_kami)
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D7.0-orange.svg?style=flat-square&logo=php)](https://php.net)
 [![MySQL Version](https://img.shields.io/badge/mysql-%3E%3D5.7-blue.svg?style=flat-square&logo=mysql)](https://www.mysql.com)
+[![QQ Group](https://img.shields.io/badge/QQ_Group-1015197745-blue.svg?style=flat-square&logo=tencent-qq)](https://qm.qq.com/q/YpoK9Aifei)
 [![GitHub stars](https://img.shields.io/github/stars/Guli-Joy/ccproxy_kami?style=flat-square)](https://github.com/Guli-Joy/ccproxy_kami/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/Guli-Joy/ccproxy_kami?style=flat-square)](https://github.com/Guli-Joy/ccproxy_kami/network)
 
@@ -239,7 +240,7 @@
 <td>
 
 ### 📢 官方支持
-- 💬 官方QQ群：[点击加入](https://qm.qq.com/q/YpoK9Aifei)
+- 💬 官方QQ群：[点击加入](https://qm.qq.com/q/YpoK9Aifei) | 1015197745
 - 🌐 官方网站：[Github](https://github.com/Guli-Joy/ccproxy_kami)
 - 📧 技术邮箱：573000041@qq.com
 

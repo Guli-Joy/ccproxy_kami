@@ -221,7 +221,7 @@ if (!($islogin == 1)) {
 		});
 		table.on("edit(user)", function(obj) {
 			// var server = $("[name=server]").val();
-			console.log(obj)
+			//console.log(obj)
 			update(obj.data.appcode, obj.data.appname, obj.data.serverip);
 		});
 	//选中复选框
@@ -289,7 +289,7 @@ if (!($islogin == 1)) {
 		});
 		form.on("switch(state)", function(obj) {
 			//表格开关事件
-			console.log(obj.elem.checked);
+			//console.log(obj.elem.checked);
 		});
 
 		function New() {
@@ -355,7 +355,7 @@ if (!($islogin == 1)) {
 							}
 						},
 						error: function(data) {
-							console.log(data);
+							//console.log(data);
 							layer.msg("删除失败", {
 								icon: 5
 							});

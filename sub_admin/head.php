@@ -400,9 +400,6 @@ if (!($islogin == 1)) {
 				setTimeout(() => star.remove(), 3000);
 			}
 
-			// 添加小新头像
-			$('<div>').addClass('shinchan-head').appendTo('body');
-
 			// 添加彩虹条
 			$('<div>').addClass('rainbow').appendTo('body');
 
@@ -422,19 +419,6 @@ if (!($islogin == 1)) {
 					.appendTo(this);
 
 				setTimeout(() => ripple.remove(), 600);
-			});
-
-			// 小新头像点击效果
-			$('.shinchan-head').on('click', function() {
-				$(this).css('transform', 'scale(0.8) rotate(-15deg)')
-					.delay(200)
-					.queue(function() {
-						$(this).css('transform', 'scale(1.2) rotate(15deg)').dequeue();
-					})
-					.delay(200)
-					.queue(function() {
-						$(this).css('transform', '').dequeue();
-					});
 			});
 
 			// 优化页面切换动画

@@ -149,7 +149,7 @@ if (!($islogin == 1)) {
 						return;
 					}
 				}
-			console.log(data);
+			//console.log(data);
 			$.ajax({
 				url: "ajax.php?act=adduser",
 				type: "POST",
@@ -178,7 +178,7 @@ if (!($islogin == 1)) {
 							icon: 5
 						});
 					}
-					console.log(data);
+					//console.log(data);
 					// if (data.icon == "1") {
 
 					// } else {
@@ -188,7 +188,7 @@ if (!($islogin == 1)) {
 					// }
 				},
 				error: function(data) {
-					console.log(data);
+					//console.log(data);
 					layer.msg("保存数据失败", {
 						icon: 5
 					});

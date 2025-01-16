@@ -205,7 +205,7 @@ $bandwidthdown = isset($_REQUEST["bandwidthdown"]) ? ($_REQUEST["bandwidthdown"]
 							icon: 5
 						});
 					}
-					console.log(data);
+					//console.log(data);
 					// if (data.icon == "1") {
 
 					// } else {
@@ -215,7 +215,7 @@ $bandwidthdown = isset($_REQUEST["bandwidthdown"]) ? ($_REQUEST["bandwidthdown"]
 					// }
 				},
 				error: function(data) {
-					console.log(data);
+					//console.log(data);
 					layer.msg("编辑数据失败", {
 						icon: 5
 					});

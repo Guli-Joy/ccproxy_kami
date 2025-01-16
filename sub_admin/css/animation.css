@@ -121,19 +121,6 @@
     animation: twinkle 2s ease-in-out infinite;
 }
 
-/* 小新头像 */
-.shinchan-head {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 60px;
-    height: 60px;
-    background: url('../images/shinchan.png') no-repeat center/contain;
-    cursor: pointer;
-    transition: transform 0.3s ease;
-    z-index: 999;
-}
-
 /* 彩虹条 */
 .rainbow {
     position: fixed;
@@ -214,4 +201,9 @@
     .cloud {
         animation-duration: 30s;
     }
+} 
+
+/* 移除小新头像相关样式 */
+.shinchan-head {
+    display: none; /* 隐藏该元素 */
 } 

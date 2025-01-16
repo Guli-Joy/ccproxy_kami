@@ -28,7 +28,7 @@ if(isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
 error_reporting(E_ALL & ~E_NOTICE);              // 报告除notice外的所有错误
 ini_set('display_errors', 0);                    // 生产环境不显示错误
 ini_set('log_errors', 1);                        // 开启错误日志
-ini_set('error_log', dirname(__DIR__) . '/logs/error.log'); // 错误日志路径
+ini_set('error_log', dirname(__DIR__) . '/logs/error/error.log'); // 错误日志路径
 
 // 创建日志目录
 $logDir = dirname(__DIR__) . '/logs';
