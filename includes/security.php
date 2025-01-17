@@ -302,6 +302,62 @@ class Security {
     public function validateCsrfToken($token) {
         global $DEV_MODE;
         
+        // 支付接口特殊处理
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+        if (stripos($requestUri, '/Sdk/epayapi.php') !== false) {
+            $referer = $_SERVER['HTTP_REFERER'] ?? '';
+            if (empty($referer)) {
+                return false;
+            }
+            $refererHost = parse_url($referer, PHP_URL_HOST);
+            if (empty($refererHost)) {
+                return false;
+            }
+            
+            // 从数据库获取允许的域名
+            global $dbconfig;
+            if (empty($dbconfig) || !is_array($dbconfig)) {
+                // 如果数据库配置不存在，先加载配置文件
+                $config_file = dirname(__DIR__) . '/config.php';
+                if (file_exists($config_file)) {
+                    require_once($config_file);
+                }
+            }
+            
+            if (!empty($dbconfig) && is_array($dbconfig)) {
+                try {
+                    $conn = mysqli_connect(
+                        $dbconfig['host'] ?? 'localhost',
+                        $dbconfig['user'] ?? '',
+                        $dbconfig['pwd'] ?? '',
+                        $dbconfig['dbname'] ?? ''
+                    );
+                    
+                    if ($conn) {
+                        $query = "SELECT siteurl FROM sub_admin WHERE username='admin' LIMIT 1";
+                        $result = mysqli_query($conn, $query);
+                        if ($result && $row = mysqli_fetch_assoc($result)) {
+                            $siteurl = $row['siteurl'];
+                            if (!empty($siteurl)) {
+                                // 处理siteurl，确保它是一个有效的URL
+                                if (strpos($siteurl, 'http') !== 0) {
+                                    $siteurl = 'http://' . $siteurl;
+                                }
+                                $allowedHost = parse_url($siteurl, PHP_URL_HOST);
+                                if (!empty($allowedHost) && $refererHost === $allowedHost) {
+                                    mysqli_close($conn);
+                                    return true;
+                                }
+                            }
+                        }
+                        mysqli_close($conn);
+                    }
+                } catch (Exception $e) {
+                    error_log("Database error in CSRF validation: " . $e->getMessage());
+                }
+            }
+        }
+        
         // 开发模式下的特殊处理
         if ($DEV_MODE) {
             // 检查是否为内部Ajax请求

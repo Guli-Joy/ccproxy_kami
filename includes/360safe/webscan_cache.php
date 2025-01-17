@@ -30,7 +30,8 @@ $api_limits = [
 $webscan_white_directory='sub_admin|install|api';  // 使用|分隔多个目录
 $webscan_white_url = array(
     'api/api.php' => 'gethostapp',
-    'sub_admin/ajax.php' => 'getapp'
+    'sub_admin/ajax.php' => 'getapp',
+    'Sdk/epayapi.php' => ''  // 添加支付接口白名单
 );
 
 // 安全配置

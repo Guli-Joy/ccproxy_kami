@@ -328,7 +328,7 @@ function configure_notifications($settings) {
 }
 
 // 开发环境配置
-$DEV_MODE = true;  // 开发模式开关
+$DEV_MODE = false;  // 开发模式开关
 
 // 开发环境IP白名单
 $DEV_ALLOWED_IPS = array(
