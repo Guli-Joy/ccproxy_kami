@@ -69,9 +69,67 @@ function validateToken($token) {
 
 try {
     // 验证来源站点
-    $referer = isset($_SERVER['HTTP_REFERER']) ? parse_url($_SERVER['HTTP_REFERER'], PHP_URL_HOST) : '';
-    if (empty($referer) || $referer !== $_SERVER['HTTP_HOST']) {
-        throw new Exception('非法请求来源');
+    $referer = isset($_SERVER['HTTP_REFERER']) ? parse_url($_SERVER['HTTP_REFERER']) : '';
+    $current_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+    
+    if (empty($referer) || empty($referer['host'])) {
+        throw new Exception('非法请求来源: 缺少来源信息');
+    }
+    
+    // 获取数据库中的站点URL
+    $conn = mysqli_connect($dbconfig['host'], $dbconfig['user'], $dbconfig['pwd'], $dbconfig['dbname']);
+    if (!$conn) {
+        throw new Exception("数据库连接失败");
+    }
+    
+    $query = "SELECT siteurl FROM sub_admin WHERE username='admin' LIMIT 1";
+    $result = mysqli_query($conn, $query);
+    if (!$result) {
+        mysqli_close($conn);
+        throw new Exception("获取站点配置失败");
+    }
+    
+    $row = mysqli_fetch_assoc($result);
+    mysqli_close($conn);
+    
+    if (empty($row['siteurl'])) {
+        throw new Exception("站点URL未配置");
+    }
+    
+    // 处理siteurl，确保它是一个完整的URL
+    $siteurl = $row['siteurl'];
+    if (strpos($siteurl, 'http://') !== 0 && strpos($siteurl, 'https://') !== 0) {
+        $siteurl = 'http://' . $siteurl;
+    }
+    
+    // 解析允许的域名
+    $allowed_url = parse_url($siteurl);
+    if (empty($allowed_url['host'])) {
+        throw new Exception("站点URL格式错误: " . $siteurl);
+    }
+    
+    // 比较主机名和端口
+    $referer_host = strtolower($referer['host']);
+    $referer_port = isset($referer['port']) ? ':'.$referer['port'] : '';
+    $allowed_host = strtolower($allowed_url['host']);
+    $allowed_port = isset($allowed_url['port']) ? ':'.$allowed_url['port'] : '';
+    
+    // 构建完整的主机字符串（包含端口）
+    $referer_full = $referer_host . $referer_port;
+    $allowed_full = $allowed_host . $allowed_port;
+    
+    // 如果配置的URL中没有指定端口，也接受当前请求的端口
+    if (empty($allowed_port)) {
+        // 从当前请求中提取端口
+        $current_parts = explode(':', $current_host);
+        $allowed_full = $allowed_host;
+        if (count($current_parts) > 1 && $referer_host === $allowed_host) {
+            $allowed_full = $current_host;
+        }
+    }
+    
+    if ($referer_full !== $allowed_full) {
+        throw new Exception(sprintf('非法请求来源: %s != %s', $referer_full, $allowed_full));
     }
     
     // 验证令牌
@@ -82,29 +140,13 @@ try {
     // 验证参数
     validateParams($_POST);
     
-    // 获取数据库中的站点URL
-    $conn = mysqli_connect($dbconfig['host'], $dbconfig['user'], $dbconfig['pwd'], $dbconfig['dbname']);
-    if (!$conn) {
-        throw new Exception("数据库连接失败");
-    }
-    
-    $query = "SELECT siteurl FROM sub_admin LIMIT 1";
-    $result = mysqli_query($conn, $query);
-    if (!$result) {
-        throw new Exception("获取站点配置失败");
-    }
-    
-    $row = mysqli_fetch_assoc($result);
-    $siteurl = $row['siteurl'];
-    mysqli_close($conn);
-
     // 构造支付参数
     $parameter = array(
         "pid" => trim($epay_config['pid']),
         "type" => trim($_POST['type']),
         "out_trade_no" => trim($_POST['out_trade_no']),
-        "notify_url" => trim("http://".$siteurl."/SDK/notify_url.php"),
-        "return_url" => trim("http://".$siteurl."/SDK/return_url.php"),
+        "notify_url" => trim("http://".$row['siteurl']."/SDK/notify_url.php"),
+        "return_url" => trim("http://".$row['siteurl']."/SDK/return_url.php"),
         "name" => trim($_POST['name']),
         "money" => sprintf("%.2f", $_POST['money']),
         "sitename" => trim($_POST['sitename'])

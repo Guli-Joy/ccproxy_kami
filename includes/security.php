@@ -309,10 +309,14 @@ class Security {
             if (empty($referer)) {
                 return false;
             }
-            $refererHost = parse_url($referer, PHP_URL_HOST);
-            if (empty($refererHost)) {
+            
+            // 解析来源URL
+            $refererParts = parse_url($referer);
+            if (empty($refererParts['host'])) {
                 return false;
             }
+            $refererHost = $refererParts['host'];
+            $refererPort = $refererParts['port'] ?? null;
             
             // 从数据库获取允许的域名
             global $dbconfig;
@@ -343,10 +347,26 @@ class Security {
                                 if (strpos($siteurl, 'http') !== 0) {
                                     $siteurl = 'http://' . $siteurl;
                                 }
-                                $allowedHost = parse_url($siteurl, PHP_URL_HOST);
-                                if (!empty($allowedHost) && $refererHost === $allowedHost) {
-                                    mysqli_close($conn);
-                                    return true;
+                                
+                                // 解析允许的URL
+                                $allowedParts = parse_url($siteurl);
+                                if (!empty($allowedParts['host'])) {
+                                    $allowedHost = $allowedParts['host'];
+                                    $allowedPort = $allowedParts['port'] ?? null;
+                                    
+                                    // 比较主机名（支持IP）和端口
+                                    $hostMatch = ($refererHost === $allowedHost);
+                                    $portMatch = true; // 默认端口匹配
+                                    
+                                    // 如果设置了端口，则需要匹配端口
+                                    if ($allowedPort !== null || $refererPort !== null) {
+                                        $portMatch = ($refererPort === $allowedPort);
+                                    }
+                                    
+                                    if ($hostMatch && $portMatch) {
+                                        mysqli_close($conn);
+                                        return true;
+                                    }
                                 }
                             }
                         }

@@ -287,13 +287,13 @@ function queryuserall($adminpassword, $adminport, $proxyaddress)
             "user" => $match[1][$key],
             "pwd" => $match2[1][$key],
             "state" => $match3[0][$key],
-            "pwdstate" => $match4[0][$key],
-            "disabletime" => $match5[1][$key] . " " . $match6[1][$key],
-            "expire" => strtotime($time) > strtotime($match5[1][$key] . " " . $match6[1][$key]) ? 1 : 0,
-            "connection"=>$match8[1][$key],
-            "bandwidthup"=>explode("/",$match9[1][$key])[0],
-            "bandwidthdown"=>explode("/",$match9[1][$key])[1],
-            "autodisable"=>$match7[0][$key]
+            "pwdstate" => $match4[0][$key] ?? '0',
+            "disabletime" => ($match5[1][$key] ?? '') . " " . ($match6[1][$key] ?? ''),
+            "expire" => strtotime($time) > strtotime(($match5[1][$key] ?? '') . " " . ($match6[1][$key] ?? '')) ? 1 : 0,
+            "connection" => $match8[1][$key] ?? '-1',
+            "bandwidthup" => isset($match9[1][$key]) ? (explode("/", $match9[1][$key])[0] ?? '-1') : '-1',
+            "bandwidthdown" => isset($match9[1][$key]) ? (explode("/", $match9[1][$key])[1] ?? '-1') : '-1',
+            "autodisable" => $match7[0][$key] ?? '0'
         );
     }
 
