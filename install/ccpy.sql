@@ -244,7 +244,7 @@ DROP TABLE IF EXISTS `sub_admin`;
 CREATE TABLE `sub_admin` (
   `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'ID',
   `username` varchar(20) NOT NULL COMMENT '用户名',
-  `password` varchar(20) NOT NULL COMMENT '密码',
+  `password` varchar(32) NOT NULL COMMENT '密码',
   `hostname` varchar(20) NOT NULL COMMENT '网站标题',
   `cookies` varchar(255) NOT NULL COMMENT ' 登录会话',
   `found_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

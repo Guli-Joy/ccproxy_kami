@@ -22,13 +22,13 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 	// 验证密码
 	if($row) {
 		// 检查是否是明文密码
-		if(strlen($row['password']) < 60) { // 未经过hash的密码
-			// 如果密码匹配,则更新为hash密码
+		if(strlen($row['password']) < 32) { // 未经过md5加密的密码
+			// 如果密码匹配,则更新为md5密码
 			if($pass == $row['password']) {
 				try {
-					$hashed_password = SecurityFilter::hashPassword($pass);
-					$DB->exe("UPDATE sub_admin SET password='" . $DB->escape($hashed_password) . "' WHERE username='" . $DB->escape($user) . "'");
-					$row['password'] = $hashed_password; // 更新当前会话的密码
+					$md5_password = md5($pass);
+					$DB->exe("UPDATE sub_admin SET password='" . $DB->escape($md5_password) . "' WHERE username='" . $DB->escape($user) . "'");
+					$row['password'] = $md5_password; // 更新当前会话的密码
 				} catch (Exception $e) {
 					error_log("Password update error: " . $e->getMessage());
 					$json = ["code" => "-1", "msg" => "系统错误，请稍后再试"];
@@ -38,7 +38,7 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 		}
 		
 		// 验证密码
-		if(SecurityFilter::verifyPassword($pass, $row['password'])) {
+		if($row['password'] === md5($pass)) {
 			try {
 				unset($_SESSION['xx_session_code']);
 				$session = md5($user.$pass.$password_hash);

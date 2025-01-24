@@ -326,7 +326,6 @@ switch ($act) {
                 'comment'  => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $comment)),
                 'username' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $subconf['username']))
             );
-            //print_r($arr);
             $exec = $DB->insert('server_list', $arr);
             if ($exec) {
                 $code = [
@@ -372,6 +371,71 @@ switch ($act) {
                 "msg" => "参数错误"
             ];
             exit(json_encode($code, JSON_UNESCAPED_UNICODE));
+        }
+        break;
+    case "editserver":
+        try {
+            if(!isset($_POST['data'])) {
+                throw new Exception('参数错误');
+            }
+
+            $data = $_POST['data'];
+            
+            // 验证必要参数
+            if(empty($data['serverip']) || empty($data['user']) || empty($data['pwd']) || empty($data['cport'])) {
+                throw new Exception('请填写完整信息');
+            }
+
+            // 验证端口号
+            if(!is_numeric($data['cport']) || $data['cport'] < 1 || $data['cport'] > 65535) {
+                throw new Exception('端口号必须在1-65535之间');
+            }
+
+            // 验证IP格式
+            $valid = count(explode(".", $data['serverip']));
+            if($valid < 2) {
+                throw new Exception('输入了错误的IP或者域名');
+            }
+
+            // 检查IP是否已存在（排除自身）
+            $check = $DB->selectRow("SELECT id FROM server_list WHERE ip='" . $DB->escape($data['serverip']) . "' AND id != '" . $DB->escape($data['id']) . "'");
+            if($check) {
+                throw new Exception('该服务器IP已存在');
+            }
+
+            // 更新服务器信息
+            $update = [
+                'ip' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $data['serverip'])),
+                'serveruser' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $data['user'])),
+                'password' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $data['pwd'])),
+                'cport' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $data['cport'])),
+                'state' => $data['state'],
+                'comment' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $data['comment']))
+            ];
+
+            $sql = "UPDATE server_list SET ";
+            foreach($update as $key => $value) {
+                $sql .= "`$key`='$value',";
+            }
+            $sql = rtrim($sql, ',');
+            $sql .= " WHERE id='" . $DB->escape($data['id']) . "' AND username='" . $DB->escape($subconf['username']) . "'";
+
+            $result = $DB->exe($sql);
+            if($result !== false) {
+                WriteLog("编辑服务器", "编辑服务器 [{$data['serverip']}] " . $data['comment'], $subconf['username'], $DB);
+                exit(json_encode([
+                    'code' => 1,
+                    'msg' => '编辑成功'
+                ], JSON_UNESCAPED_UNICODE));
+            } else {
+                throw new Exception('编辑失败');
+            }
+
+        } catch(Exception $e) {
+            exit(json_encode([
+                'code' => -1,
+                'msg' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE));
         }
         break;
     case "getkami":
@@ -1802,6 +1866,74 @@ switch ($act) {
             }
             exit(json_encode($code, JSON_UNESCAPED_UNICODE));
             break;
+    case "updatepwd":
+        try {
+            // 验证用户是否登录
+            if($islogin != 1) {
+                throw new Exception('请先登录');
+            }
+
+            // 验证必要参数
+            if(!isset($_POST['oldpwd'])) {
+                throw new Exception('请输入原密码');
+            }
+            if(!isset($_POST['newpwd'])) {
+                throw new Exception('请输入新密码');
+            }
+
+            $oldpwd = trim($_POST['oldpwd']);
+            $newpwd = trim($_POST['newpwd']);
+
+            // 验证密码不能为空
+            if(empty($oldpwd)) {
+                throw new Exception('原密码不能为空');
+            }
+            if(empty($newpwd)) {
+                throw new Exception('新密码不能为空');
+            }
+
+            // 验证新密码长度
+            if(strlen($newpwd) < 6) {
+                throw new Exception('新密码长度不能小于6位');
+            }
+
+            // 验证旧密码是否正确
+            $user = $DB->selectRow("SELECT * FROM sub_admin WHERE username='" . $DB->escape($subconf['username']) . "'");
+            if(!$user) {
+                throw new Exception('用户不存在');
+            }
+
+            // 检查原密码 - 支持明文密码和MD5密码
+            if($user['password'] !== $oldpwd && $user['password'] !== md5($oldpwd)) {
+                throw new Exception('原密码错误');
+            }
+
+            // 验证新旧密码不能相同
+            if($oldpwd === $newpwd || ($user['password'] === md5($newpwd))) {
+                throw new Exception('新密码不能与原密码相同');
+            }
+
+            // 更新密码 - 使用MD5加密存储
+            $sql = "UPDATE sub_admin SET password='" . md5($newpwd) . "' WHERE username='" . $DB->escape($subconf['username']) . "'";
+            $result = $DB->exe($sql);
+
+            if($result !== false) {
+                WriteLog("修改密码", "密码修改成功", $subconf['username'], $DB);
+                exit(json_encode([
+                    'code' => 1,
+                    'msg' => '密码修改成功'
+                ], JSON_UNESCAPED_UNICODE));
+            } else {
+                throw new Exception('密码修改失败');
+            }
+
+        } catch(Exception $e) {
+            exit(json_encode([
+                'code' => -1,
+                'msg' => $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        break;
     default:
         exit(json_encode(["code"=>-4,"msg"=>"No Act"]));
         break;

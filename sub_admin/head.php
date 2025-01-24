@@ -549,7 +549,7 @@ if (!($islogin == 1)) {
 
 							<!-- 提交按钮 -->
 							<div class="btn-container">
-								<button class="layui-btn" lay-submit lay-filter="submit-password">
+								<button type="button" class="layui-btn" lay-submit lay-filter="submit-password">
 									<i class="layui-icon layui-icon-ok"></i> 确认修改
 								</button>
 							</div>
@@ -561,22 +561,51 @@ if (!($islogin == 1)) {
 						
 						// 监听表单提交
 						form.on('submit(submit-password)', function(data) {
+							// 验证两次输入的密码是否一致
+							if(data.field.password !== data.field.confirm_password) {
+								layer.msg('两次输入的新密码不一致', {
+									icon: 5,
+									time: 2000
+								});
+								return false;
+							}
+
+							// 验证新密码长度
+							if(data.field.password.length < 6) {
+								layer.msg('新密码长度不能小于6位', {
+									icon: 5,
+									time: 2000
+								});
+								return false;
+							}
+
+							// 验证新旧密码不能相同
+							if(data.field.out_password === data.field.password) {
+								layer.msg('新密码不能与原密码相同', {
+									icon: 5,
+									time: 2000
+								});
+								return false;
+							}
+
+							// 构造发送到后端的数据
+							var submitData = {
+								oldpwd: data.field.out_password,
+								newpwd: data.field.password
+							};
+
+							// 显示加载中
+							var loadIndex = layer.load(2, {shade: [0.3, '#fff']});
+
 							$.ajax({
 								url: "ajax.php?act=updatepwd",
 								type: "POST",
 								dataType: "json",
-								data: data.field,
-								beforeSend: function() {
-									layer.msg("正在提交", {
-										icon: 16,
-										shade: 0.05,
-										time: false
-									});
-								},
-								success: function(data) {
-									if (data.code == "1") {
-										layer.closeAll();
-										layer.msg(data.msg, {
+								data: submitData,
+								success: function(res) {
+									layer.close(loadIndex);
+									if (res.code == 1) {
+										layer.msg(res.msg, {
 											icon: 1,
 											time: 1500
 										}, function() {
@@ -588,39 +617,29 @@ if (!($islogin == 1)) {
 											localStorage.clear();
 											// 清除sessionStorage
 											sessionStorage.clear();
+											// 关闭弹窗
+											layer.closeAll();
 											// 跳转到登录页
 											window.location.href = 'login.php';
 										});
-									} else if(data.code == "-1") {
-										layer.msg(data.msg, {
-											icon: 5
-										});
-									} else if(data.code == "-2") {
-										layer.msg(data.msg, {
-											icon: 5
-										});
-									} else if(data.code == "-3") {
-										layer.msg(data.msg, {
-											icon: 5
-										});
 									} else {
-										layer.msg("未知错误", {
-											icon: 5
+										layer.msg(res.msg, {
+											icon: 2,
+											time: 2000
 										});
 									}
 								},
-								error: function(data) {
-									console.log(data);
-									layer.msg(data.responseText, {
-										icon: 5
+								error: function(xhr, status, error) {
+									layer.close(loadIndex);
+									layer.msg('请求失败，请重试', {
+										icon: 2,
+										time: 2000
 									});
+									console.error('Ajax error:', status, error);
 								}
 							});
 							return false;
 						});
-					},
-					end: function() {
-						layer.closeAll('loading');
 					}
 				});
 				

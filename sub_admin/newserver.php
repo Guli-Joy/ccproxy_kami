@@ -1,4 +1,3 @@
-
 <?php
 include("../includes/common.php");
 if (!($islogin == 1)) {
@@ -106,7 +105,6 @@ include("foot.php");
 				laydate = layui.laydate;
 			$(".layui-input").eq(0).focus();
 			form.on("submit(submit)", function(data) {
-				console.log(data);
 				$.ajax({
 					url: "ajax.php?act=newserver",
 					type: "POST",
@@ -132,17 +130,8 @@ include("foot.php");
 								icon: 5
 							});
 						}
-						console.log(data);
-						// if (data.icon == "1") {
-					
-						// } else {
-						// 	layer.msg(data.code, {
-						// 		icon: data.icon
-						// 	});
-						// }
 					},
 					error: function(data) {
-						console.log(data);
 						layer.msg("保存数据失败", {
 							icon: 5
 						});

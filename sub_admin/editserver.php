@@ -144,8 +144,6 @@ $comment=$_REQUEST["comment"];
 		$(".layui-input").eq(0).focus();
 		
 		form.on("submit(submit)", function(data) {
-			//console.log("表单提交", data.field);
-			
 			var formData = data.field;
 			formData.state = formData.state ? "1" : "0";
 			
@@ -181,7 +179,6 @@ $comment=$_REQUEST["comment"];
 				},
 				error: function(xhr, status, error) {
 					layer.closeAll('loading');
-					//console.log("提交错误", error);
 					layer.msg("编辑数据失败: " + error, {
 						icon: 5
 					});
@@ -190,9 +187,7 @@ $comment=$_REQUEST["comment"];
 			return false;
 		});
 		
-		form.on('switch(state)', function(data){
-			//console.log("开关状态改变", data.elem.checked);
-		});
+		form.on('switch(state)', function(data){});
 	});
 </script>
 
