@@ -917,7 +917,7 @@ function is_Date($str,$format='Y-m-d H:i:s',$split='-'){
  */
 function KamiPaeseString($str)
 {
-    $res=str_replace(array("+", " ", "year", "month", "day", "hour"), array("", "", "年","月","天","时"), $str);
+    $res=str_replace(array("+", " ", "year", "month", "day", "hour", "minute"), array("", "", "年","月","天","时","分"), $str);
     return $res;
 }
 

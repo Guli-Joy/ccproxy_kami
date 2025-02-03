@@ -77,11 +77,10 @@ if (!($islogin == 1)) {
 				<option value="1">1天</option>
 				<option value="7">7天</option>
 				<option value="30">30天</option>
-				<?php
-				if ($subconf['qx'] == 0) {
-					echo '<option value="-1">自定义</option>';
-				}
-				?>
+				<option value="90">90天</option>
+				<option value="180">180天</option>
+				<option value="365">365天</option>
+				<option value="-1">自定义</option>
 			</select>
 		</div>
 	</div>
@@ -95,6 +94,7 @@ if (!($islogin == 1)) {
 			<input type="checkbox" name="month" lay-filter="kamitype" title="月">
 			<input type="checkbox" name="day" lay-filter="kamitype" title="天" checked>
 			<input type="checkbox" name="hour" lay-filter="kamitype" title="时">
+			<input type="checkbox" name="minute" lay-filter="kamitype" title="分">
 		</div>
 	</div>
 
@@ -104,7 +104,7 @@ if (!($islogin == 1)) {
 			<span class="layui-must">*</span>
 		</label>
 		<div class="layui-input-block">
-			<input type="text" name="kamidur" class="layui-input" placeholder="自定义时长（年/月/天/时）">
+			<input type="text" name="kamidur" class="layui-input" placeholder="自定义时长（年/月/天/时/分）">
 		</div>
 	</div>
 	<div class="layui-form-item">

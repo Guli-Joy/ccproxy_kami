@@ -496,19 +496,17 @@ switch ($act) {
             }
 
             if(!empty($_POST["kamidur"])){
-                if(intval($_POST["kamidur"])<1){
-                    exit(json_encode( $code = [ "code" => "-1",  "msg" => "自定义时长不能小于1,也不能为小数！",  "kami" => ""], JSON_UNESCAPED_UNICODE));
+                // 允许小数,但不能小于0.1
+                if(floatval($_POST["kamidur"]) < 0.1){
+                    exit(json_encode([
+                        "code" => "-1",
+                        "msg" => "自定义时长不能小于0.1",
+                        "kami" => ""
+                    ], JSON_UNESCAPED_UNICODE));
                 }
-                $vlidnum=count(explode(".",$_POST["kamidur"]));
-                
-                if( $vlidnum>=2)
-                {
-                    exit(json_encode( $code = [ "code" => "-1",  "msg" => "自定义时长不能为小数！",  "kami" => ""], JSON_UNESCAPED_UNICODE));
-                }
-
             }
 
-            $kamidurdangwei="+".intval((!empty($_POST["kamidur"])?$_POST["kamidur"]:$_POST["duration"]));
+            $kamidurdangwei="+".floatval((!empty($_POST["kamidur"])?$_POST["kamidur"]:$_POST["duration"]));
 
             $kamicount=0;
 
@@ -520,7 +518,7 @@ switch ($act) {
 
             if(isset($_POST["month"]) && $_POST["month"]=="on")
             {
-                $kamidurdangwei.=" month";
+                $kamidurdangwei.=" month"; 
                 $kamicount++;
             }
 
@@ -533,6 +531,12 @@ switch ($act) {
             if(isset($_POST["hour"]) && $_POST["hour"]=="on")
             {
                 $kamidurdangwei.=" hour";
+                $kamicount++;
+            }
+
+            if(isset($_POST["minute"]) && $_POST["minute"]=="on")
+            {
+                $kamidurdangwei.=" minute";
                 $kamicount++;
             }
 
