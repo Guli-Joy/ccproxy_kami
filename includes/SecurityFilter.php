@@ -17,8 +17,31 @@ class SecurityFilter {
         }
         
         // 特殊字段保持原始大小写
-        $preserve_case_fields = ['merchant_key', 'key', 'secret', 'token', 'api_key'];
-        if (in_array($key, $preserve_case_fields)) {
+        $preserve_case_fields = [
+            'merchant_key', 
+            'key', 
+            'secret', 
+            'token', 
+            'api_key',
+            'user',         
+            'username',     
+            'newuser',      
+            'olduser',
+            'account',      // 添加订单账号
+            'password',     // 添加订单密码
+            'pwd'          // 添加密码字段
+        ];
+
+        // 检查是否是支付相关请求
+        $is_payment_request = false;
+        if(isset($_SERVER['REQUEST_URI'])) {
+            if(strpos($_SERVER['REQUEST_URI'], '/api/api.php') !== false && 
+               (isset($_POST['act']) && in_array(strtolower($_POST['act']), ['createorder', 'createOrder']))) {
+                $is_payment_request = true;
+            }
+        }
+
+        if (in_array($key, $preserve_case_fields) || $is_payment_request) {
             // 对于这些字段，只做基本的XSS过滤，不转换大小写
             $data = strval($data);
             $data = strip_tags($data);
@@ -30,14 +53,8 @@ class SecurityFilter {
             return $data;
         }
         
-        // 其他字段的正常处理
-        $data = strval($data);
-        $data = strip_tags($data);
-        $data = str_replace(
-            ['javascript:', 'vbscript:', 'data:', 'alert', 'onclick', 'onerror', '<script', '</script>'],
-            ['', '', '', '', '', '', '', ''],
-            strtolower($data)
-        );
+        // 其他字段的正常处理会转换为小写
+        $data = strtolower($data);
         
         // 过滤所有可能的XSS向量
         $data = preg_replace([
@@ -223,11 +240,11 @@ class SecurityFilter {
         $data = trim($data);
         // 保持原有的strip_tags过滤
         $data = strip_tags($data);
-        // 增强XSS过滤
+        // 增强XSS过滤，但不转换大小写
         $data = htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
         // 保持原有的addslashes
         $data = addslashes($data);
-        // 过滤特殊字符但保留原有功能
+        // 过滤特殊字符但保留原有功能和大小写
         $data = str_replace(
             array('&', '"', '<', '>', '\'', '(', ')', '{', '}', '\\'),
             array('&amp;', '&quot;', '&lt;', '&gt;', '&#039;', '&#40;', '&#41;', '&#123;', '&#125;', '&#92;'),

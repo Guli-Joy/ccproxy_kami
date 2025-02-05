@@ -137,10 +137,14 @@ class SpringMySQLi
      */
     public function escape($val)
     {
-        if ($this->dbConn)
-            return $this->dbConn->real_escape_string(stripslashes(trim($val)));
-        else
-            return addslashes(stripslashes(trim($val)));
+        // 保持原始大小写,只做必要的安全转义
+        if ($this->dbConn) {
+            // 只做 SQL 注入防护,不改变大小写
+            return $this->dbConn->real_escape_string($val);
+        } else {
+            // 备用方案同样保持大小写
+            return addslashes($val); 
+        }
     }
 
     /**
@@ -261,38 +265,40 @@ class SpringMySQLi
     }
 
     /**
-     * add a new record into given table
+     * 重写insert方法以支持保持大小写的字段
      */
-    public function insert($table, $values)
-    {
-        $vars = $this->filterVars($values);
-        $this->querySql = "INSERT INTO {$table} SET {$vars}";
+    public function insert($table, $data, $preserveCaseFields = ['account', 'password']) {
+        $fields = array();
+        $values = array();
+        
+        foreach ($data as $key => $value) {
+            $fields[] = "`$key`";
+            // 直接使用 real_escape_string 保持原始大小写
+            $values[] = "'" . $this->dbConn->real_escape_string($value) . "'";
+        }
+        
+        $sql = "INSERT INTO `$table` (" . implode(',', $fields) . ") VALUES (" . implode(',', $values) . ")";
+        $this->querySql = $sql;
         
         $queryResult = false;
         if ($this->connect()) {
-            $queryRows = 0;
             $queryStart = microtime(true);
-            $queryResult = $this->dbConn->query($this->querySql);
+            $queryResult = $this->dbConn->query($sql);
             $queryConsumed = microtime(true) - $queryStart;
 
             if (false === $queryResult) {
                 $this->fetchError();
-            }
-            else if ($this->dbConn->insert_id) {
-                $queryResult = $this->dbConn->insert_id;  //new record id
-                $queryRows = $this->dbConn->affected_rows;
-            }
-            else {
-                $queryRows = $this->dbConn->affected_rows;
+            } else if ($this->dbConn->insert_id) {
+                $queryResult = $this->dbConn->insert_id;
             }
 
             $this->runCount++;
             $this->runTime += $queryConsumed;
             $this->queryLogs[] = array(
-                $this->querySql,    //query statement
-                $queryConsumed,     //query consumed time(s)
-                $queryResult,       //query result (true/false)
-                $queryRows,         //new id or affected rows
+                $sql,
+                $queryConsumed,
+                $queryResult,
+                $this->dbConn->affected_rows
             );
         }
         return $queryResult;
@@ -429,7 +435,14 @@ class SpringMySQLi
             if ('=' == substr($v,0,1) && preg_match('/^[\w\+\-\*\/\._,()\s]+$/', substr($v,1))) {
                 $arr[] = $k . $v;
             } else {
-                $arr[] = $k . "='" . $this->escape($v) . "'";
+                // 对于用户名和密码字段特殊处理
+                if ($k == 'account' || $k == 'password' || $k == 'user' || $k == 'pwd') {
+                    // 只做 SQL 转义,保持大小写
+                    $arr[] = $k . "='" . $this->dbConn->real_escape_string($v) . "'";
+                } else {
+                    // 其他字段正常处理
+                    $arr[] = $k . "='" . $this->escape($v) . "'";
+                }
             }
         }
         return implode(',', $arr);
@@ -506,6 +519,38 @@ class SpringMySQLi
         if (is_null($error)) {
             $this->errMsg = $this->dbConn->error;
         }
+    }
+
+    public function getRow($sql, $params = []) {
+        if (empty($params)) {
+            $result = $this->dbConn->query($sql);
+            return $result ? $result->fetch_assoc() : null;
+        }
+        
+        $stmt = $this->dbConn->prepare($sql);
+        if (!$stmt) {
+            return null;
+        }
+        
+        $types = '';
+        foreach ($params as $param) {
+            if (is_int($param)) {
+                $types .= 'i';
+            } elseif (is_float($param)) {
+                $types .= 'd';
+            } else {
+                $types .= 's';
+            }
+        }
+        
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        
+        $stmt->close();
+        return $row;
     }
 }
 

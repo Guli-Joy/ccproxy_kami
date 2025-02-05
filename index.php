@@ -712,7 +712,7 @@ try {
                     type: "POST",
                     dataType: "json",
                     data: {
-                        'user': user,
+                        'user': user.trim(),
                         'code': code
                         // server: $("[name=server]").val()
                     },
@@ -822,8 +822,8 @@ try {
                     type: "POST",
                     dataType: "json",
                     data: {
-                        'user': user,
-                        'pwd': pwd,
+                        'user': user.trim(),
+                        'pwd': pwd.trim(),
                         'code': code
                         // server: $("[name=server]").val()
                     },
@@ -904,9 +904,8 @@ try {
                     type: "POST",
                     dataType: "json",
                     data: {
-                        'user': user,
-                        'appcode': checked,
-                        // server: $("[name=server]").val()
+                        'user': user.trim(),
+                        'appcode': checked
                     },
                     timeout: 30000,
                     beforeSend: function() {

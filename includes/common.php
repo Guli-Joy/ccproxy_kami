@@ -127,11 +127,135 @@ if (!$cookiesid || !preg_match('/^[0-9a-z]{32}$/i', $cookiesid)) {
     setcookie('mysid', $cookiesid, time() + 604800, '/'); //设置一个MYID
 }
 
-$subconf = $DB->selectRow('SELECT * FROM sub_admin WHERE siteurl=\'' . $_SERVER['HTTP_HOST'] . '\' limit 1');
+$current_host = $_SERVER['HTTP_HOST'];
 
-if($subconf==NULL) {
-    sysmsg('<h2>您的站点没有绑定(只能绑定一个域名),请联系管理员，或者手动修改数据库表sub_admin的siteurl字段改成<b style="color:red;">'.$_SERVER['HTTP_HOST'].'</b><br/>', true);
+// 首先尝试通过主域名查找
+$subconf = $DB->selectRow('SELECT * FROM sub_admin WHERE siteurl=\'' . $DB->escape($current_host) . '\' limit 1');
+
+// 如果主域名未找到,且域名包含端口,尝试匹配不带端口的域名
+if($subconf == NULL && strpos($current_host, ':') !== false) {
+    $host_without_port = explode(':', $current_host)[0];
+    $subconf = $DB->selectRow('SELECT * FROM sub_admin WHERE siteurl=\'' . $DB->escape($host_without_port) . '\' limit 1');
+}
+
+// 如果还是未找到,检查是否在多域名列表中
+if($subconf == NULL) {
+    $sql = "SELECT * FROM sub_admin WHERE multi_domain=1 AND domain_list IS NOT NULL";
+    $sites = $DB->select($sql);
+    if($sites) {
+        foreach($sites as $site) {
+            $domains = explode("\n", str_replace("\r", "", $site['domain_list']));
+            foreach($domains as $domain) {
+                $domain = trim($domain);
+                if(!empty($domain)) {
+                    // 完全匹配
+                    if($domain === $current_host) {
+                        $subconf = $site;
+                        break 2;
+                    }
+                    // 如果访问域名带端口,尝试匹配不带端口的域名
+                    if(strpos($current_host, ':') !== false) {
+                        $host_without_port = explode(':', $current_host)[0];
+                        if($domain === $host_without_port) {
+                            $subconf = $site;
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+if($subconf == NULL) {
+    sysmsg('<h2>您的站点没有绑定,请联系管理员绑定域名<b style="color:red;">'.$current_host.'</b><br/>', true);
     exit(0);
+}
+
+// 安全检查
+if(!isset($subconf['state']) || $subconf['state'] != 1) {
+    sysmsg('<h2>您的站点违反规定,现已被管理员关闭.<br/>', true);
+    exit(0);
+}
+
+if(!isset($subconf['over_date']) || $date > $subconf['over_date']) {
+    sysmsg('<h2>您的站点已到期,请联系管理员续费.<br/>', true);
+    exit(0);
+}
+
+// 记录访问日志
+$logger->info('Domain Access', [
+    'host' => $current_host,
+    'ip' => $clientip,
+    'user_agent' => $_SERVER['HTTP_USER_AGENT']
+]);
+
+// 修改域名验证函数
+if (!function_exists('isValidDomain')) {
+    function isValidDomain($domain, $subconf) {
+        // 移除端口号进行比较
+        $domain = explode(':', $domain)[0];
+        $site_url = explode(':', $subconf['siteurl'])[0];
+        
+        // 检查主域名
+        if($domain === $site_url) {
+            return true;
+        }
+        
+        // 检查多域名列表
+        if($subconf['multi_domain'] == 1 && !empty($subconf['domain_list'])) {
+            $domains = explode("\n", str_replace("\r", "", $subconf['domain_list']));
+            foreach($domains as $allowed_domain) {
+                $allowed_domain = trim($allowed_domain);
+                if(!empty($allowed_domain)) {
+                    // 移除端口号进行比较
+                    $allowed_domain = explode(':', $allowed_domain)[0];
+                    if($domain === $allowed_domain) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        // 支付回调特殊处理
+        if(strpos($_SERVER['REQUEST_URI'], '/Sdk/epayapi.php') !== false || 
+           strpos($_SERVER['REQUEST_URI'], '/Sdk/notify_url.php') !== false || 
+           strpos($_SERVER['REQUEST_URI'], '/Sdk/return_url.php') !== false) {
+            return true;
+        }
+        
+        return false;
+    }
+}
+
+// 修改安全检查部分
+if(isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+    $forwarded_host = $_SERVER['HTTP_X_FORWARDED_HOST'];
+    if(!isValidDomain($forwarded_host, $subconf)) {
+        $logger->security('Suspicious Host Header', [
+            'forwarded_host' => $forwarded_host,
+            'current_host' => $current_host
+        ]);
+        sysmsg('非法的域名访问', true);
+        exit(0);
+    }
+}
+
+// 修改 Referer 检查
+if(isset($_SERVER['HTTP_REFERER'])) {
+    $referer_info = parse_url($_SERVER['HTTP_REFERER']);
+    $referer_host = $referer_info['host'] ?? '';
+    
+    if($referer_host && !isValidDomain($referer_host, $subconf)) {
+        // 检查是否为支付相关请求
+        if(strpos($_SERVER['REQUEST_URI'], '/Sdk/') === false) {
+            $logger->security('Invalid Referer', [
+                'referer' => $_SERVER['HTTP_REFERER'],
+                'current_host' => $current_host
+            ]);
+            // 仅记录日志，不阻止请求
+        }
+    }
 }
 
 if (strpos($_SERVER['HTTP_USER_AGENT'], 'QQ/') !== false ) {//&& $xxs['qqtz'] == 1 判断站点开启QQ跳转
@@ -203,8 +327,33 @@ $islogin = checkAdminLogin() ? 1 : -1;
 require_once __DIR__ . '/ErrorHandler.php';
 ErrorHandler::init();
 
-// 添加安全响应头
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https:;");
+// 修改 CSP 头，放宽支付相关域名的限制
+$csp_domains = [];
+if($subconf['multi_domain'] == 1 && !empty($subconf['domain_list'])) {
+    $domains = explode("\n", str_replace("\r", "", $subconf['domain_list']));
+    foreach($domains as $domain) {
+        $domain = trim($domain);
+        if(!empty($domain)) {
+            $csp_domains[] = "https://{$domain}";
+            $csp_domains[] = "http://{$domain}";
+        }
+    }
+}
+
+// 添加支付相关域名
+$csp_domains[] = "https://*.alipay.com";
+$csp_domains[] = "https://*.qq.com";
+$csp_domains[] = "https://*.weixin.qq.com";
+
+$csp_domains = implode(' ', array_unique($csp_domains));
+$csp = "Content-Security-Policy: default-src 'self' {$csp_domains}; " .
+       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net {$csp_domains}; " .
+       "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net {$csp_domains}; " .
+       "img-src 'self' data: https: {$csp_domains}; " .
+       "form-action 'self' {$csp_domains}; " .  // 添加form-action
+       "font-src 'self' data: https: {$csp_domains};";
+
+header($csp);
 header("X-Content-Type-Options: nosniff");
 header("X-Frame-Options: SAMEORIGIN");
 header("X-XSS-Protection: 1; mode=block");
@@ -220,4 +369,10 @@ if (!function_exists('logSecurityEvent')) {
         global $logger;
         $logger->security($message, array_merge(['event_type' => $type], $data));
     }
+}
+
+// 标识是否为支付相关请求
+$is_payment_request = false;
+if(strpos($_SERVER['REQUEST_URI'], '/Sdk/') === 0) {
+    $is_payment_request = true;
 }

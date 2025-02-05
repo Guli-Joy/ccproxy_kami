@@ -116,8 +116,8 @@ CREATE TABLE `orders` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `order_no` varchar(32) NOT NULL COMMENT '订单号',
   `appcode` varchar(32) NOT NULL COMMENT '应用代码',
-  `account` varchar(64) NOT NULL COMMENT '账号',
-  `password` varchar(64) DEFAULT NULL COMMENT '密码（注册模式）',
+  `account` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '账号',
+  `password` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT '密码（注册模式）',
   `package_id` int(11) NOT NULL COMMENT '套餐ID',
   `amount` decimal(10,2) NOT NULL COMMENT '金额',
   `pay_type` varchar(20) NOT NULL COMMENT '支付方式',
@@ -249,7 +249,7 @@ CREATE TABLE `sub_admin` (
   `cookies` varchar(255) NOT NULL COMMENT ' 登录会话',
   `found_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `over_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '到期时间',
-  `siteurl` varchar(255) NOT NULL,
+  `siteurl` varchar(255) NOT NULL COMMENT '主域名',
   `state` tinyint(1) NOT NULL DEFAULT '1' COMMENT '站点违规',
   `pan` varchar(255) NOT NULL COMMENT '网盘',
   `wzgg` text NOT NULL COMMENT '网站公告',
@@ -266,6 +266,8 @@ CREATE TABLE `sub_admin` (
   `show_kami_pay` int(1) NOT NULL DEFAULT '1' COMMENT '卡密充值开关',
   `show_kami_reg` int(1) NOT NULL DEFAULT '1' COMMENT '卡密注册开关',
   `show_user_search` int(1) NOT NULL DEFAULT '1' COMMENT '用户查询开关',
+  `multi_domain` int(1) NOT NULL DEFAULT '0' COMMENT '多域名开关 0=关闭 1=开启',
+  `domain_list` text COMMENT '多域名列表',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `username` (`username`) USING BTREE,
   KEY `id` (`id`) USING BTREE
@@ -278,8 +280,8 @@ CREATE TABLE `sub_admin` (
 
 LOCK TABLES `sub_admin` WRITE;
 /*!40000 ALTER TABLE `sub_admin` DISABLE KEYS */;
-INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`) 
-VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','192.168.31.134:8882',1,'','测试公告公告公告测试公告','','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1);
+INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`, `multi_domain`, `domain_list`) 
+VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','192.168.31.134:8882',1,'','测试公告公告公告测试公告','','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1,0,'');
 /*!40000 ALTER TABLE `sub_admin` ENABLE KEYS */;
 UNLOCK TABLES;
 

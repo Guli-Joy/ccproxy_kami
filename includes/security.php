@@ -304,78 +304,29 @@ class Security {
         
         // 支付接口特殊处理
         $requestUri = $_SERVER['REQUEST_URI'] ?? '';
-        if (stripos($requestUri, '/Sdk/epayapi.php') !== false) {
-            $referer = $_SERVER['HTTP_REFERER'] ?? '';
-            if (empty($referer)) {
-                return false;
-            }
-            
-            // 解析来源URL
-            $refererParts = parse_url($referer);
-            if (empty($refererParts['host'])) {
-                return false;
-            }
-            $refererHost = $refererParts['host'];
-            $refererPort = $refererParts['port'] ?? null;
-            
-            // 从数据库获取允许的域名
-            global $dbconfig;
-            if (empty($dbconfig) || !is_array($dbconfig)) {
-                // 如果数据库配置不存在，先加载配置文件
-                $config_file = dirname(__DIR__) . '/config.php';
-                if (file_exists($config_file)) {
-                    require_once($config_file);
-                }
-            }
-            
-            if (!empty($dbconfig) && is_array($dbconfig)) {
-                try {
-                    $conn = mysqli_connect(
-                        $dbconfig['host'] ?? 'localhost',
-                        $dbconfig['user'] ?? '',
-                        $dbconfig['pwd'] ?? '',
-                        $dbconfig['dbname'] ?? ''
-                    );
-                    
-                    if ($conn) {
-                        $query = "SELECT siteurl FROM sub_admin WHERE username='admin' LIMIT 1";
-                        $result = mysqli_query($conn, $query);
-                        if ($result && $row = mysqli_fetch_assoc($result)) {
-                            $siteurl = $row['siteurl'];
-                            if (!empty($siteurl)) {
-                                // 处理siteurl，确保它是一个有效的URL
-                                if (strpos($siteurl, 'http') !== 0) {
-                                    $siteurl = 'http://' . $siteurl;
-                                }
-                                
-                                // 解析允许的URL
-                                $allowedParts = parse_url($siteurl);
-                                if (!empty($allowedParts['host'])) {
-                                    $allowedHost = $allowedParts['host'];
-                                    $allowedPort = $allowedParts['port'] ?? null;
-                                    
-                                    // 比较主机名（支持IP）和端口
-                                    $hostMatch = ($refererHost === $allowedHost);
-                                    $portMatch = true; // 默认端口匹配
-                                    
-                                    // 如果设置了端口，则需要匹配端口
-                                    if ($allowedPort !== null || $refererPort !== null) {
-                                        $portMatch = ($refererPort === $allowedPort);
-                                    }
-                                    
-                                    if ($hostMatch && $portMatch) {
-                                        mysqli_close($conn);
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
-                        mysqli_close($conn);
+        if (strpos($requestUri, '/Sdk/epayapi.php') !== false) {
+            // 检查是否为支付表单提交
+            if (isset($_POST['type']) && in_array($_POST['type'], ['alipay', 'wxpay', 'qqpay'])) {
+                if (isset($_POST['out_trade_no']) && isset($_POST['money'])) {
+                    // 验证支付令牌
+                    if (isset($_POST['token']) && isset($_SESSION['payment_token'])) {
+                        return hash_equals($_SESSION['payment_token'], $_POST['token']);
                     }
-                } catch (Exception $e) {
-                    error_log("Database error in CSRF validation: " . $e->getMessage());
+                    // 如果没有令牌但有其他必要参数，也允许通过
+                    return true;
                 }
             }
+            
+            // 检查是否为支付回调
+            if (isset($_GET['trade_status']) || isset($_POST['trade_status'])) {
+                return true;
+            }
+        }
+        
+        // 支付回调和通知URL特殊处理
+        if (strpos($requestUri, '/Sdk/notify_url.php') !== false || 
+            strpos($requestUri, '/Sdk/return_url.php') !== false) {
+            return true;
         }
         
         // 开发模式下的特殊处理
@@ -386,9 +337,21 @@ class Security {
             
             if (!empty($referer) && !empty($host)) {
                 $refererHost = parse_url($referer, PHP_URL_HOST);
-                if ($refererHost === $host || $refererHost === 'cs.glbolg.cn') {
-                    // 内部Ajax请求，放宽验证
+                if ($refererHost === $host) {
                     return true;
+                }
+                
+                // 检查是否在允许的域名列表中
+                global $subconf;
+                if (isset($subconf['multi_domain']) && $subconf['multi_domain'] == 1 && 
+                    !empty($subconf['domain_list'])) {
+                    $domains = explode("\n", str_replace("\r", "", $subconf['domain_list']));
+                    foreach ($domains as $domain) {
+                        $domain = trim($domain);
+                        if ($refererHost === $domain) {
+                            return true;
+                        }
+                    }
                 }
             }
             

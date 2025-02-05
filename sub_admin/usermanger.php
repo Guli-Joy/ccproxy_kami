@@ -310,9 +310,16 @@ include("foot.php");
 										</div>
 									</div>
 									<div class="layui-form-item">
-										<label class="layui-form-label">补偿天数</label>
-										<div class="layui-input-block">
-											<input type="number" name="compensate_days" required lay-verify="required|number" placeholder="请输入补偿天数" class="layui-input">
+										<label class="layui-form-label">补偿时间</label>
+										<div class="layui-input-inline" style="width: 100px;">
+											<input type="number" name="compensate_value" required lay-verify="required|number" placeholder="请输入数值" class="layui-input">
+										</div>
+										<div class="layui-input-inline" style="width: 100px;">
+											<select name="compensate_unit" lay-verify="required">
+												<option value="days">天</option>
+												<option value="hours">小时</option>
+												<option value="minutes">分钟</option>
+											</select>
 										</div>
 									</div>
 									<div class="layui-form-item">
@@ -367,39 +374,24 @@ include("foot.php");
 						act: 'compensatetime',
 						app: data.field.compensate_app,
 						expire_filter: data.field.compensate_filter,
-						days: data.field.compensate_days
+						value: data.field.compensate_value,
+						unit: data.field.compensate_unit,
+						batch_size: 100,
+						start: 0
 					},
 					success: function(res) {
-						layer.close(loadIndex);
 						if(res.code == 1) {
-							var resultMsg = res.msg;
-							if(res.details) {
-								resultMsg += '<br>处理详情：<br>';
-								resultMsg += '- 成功：' + res.details.success + '个<br>';
-								resultMsg += '- 失败：' + res.details.failed + '个<br>';
-								if(res.details.errors && res.details.errors.length > 0) {
-									resultMsg += '- 失败账号：<br>' + res.details.errors.join('<br>');
-								}
+							if(res.has_more) {
+								processBatch(data.field, res.processed, loadIndex);
+							} else {
+								layer.close(loadIndex);
+								showCompletionMessage(res);
 							}
-							layer.alert(resultMsg, {
-								icon: 1,
-								title: '补偿完成',
-								btn: ['确定'],
-								anim: 1,
-								shadeClose: true,
-								shade: 0.1,
-								yes: function(index) {
-									layer.close(index);
-									table.reload('server_list');
-									layer.closeAll();
-								}
-							});
 						} else {
+							layer.close(loadIndex);
 							layer.msg(res.msg || '操作失败', {
 								icon: 2,
-								time: 2000,
-								anim: 6,
-								shade: 0.1
+								time: 2000
 							});
 						}
 					},
@@ -407,15 +399,93 @@ include("foot.php");
 						layer.close(loadIndex);
 						layer.msg('请求失败: ' + error, {
 							icon: 2,
-							time: 2000,
-							anim: 6,
-							shade: 0.1
+							time: 2000
 						});
-						console.error('Ajax error:', xhr, status, error);
 					}
 				});
 				return false;
 			});
+
+			// 添加分批处理函数
+			function processBatch(formData, processedCount, loadIndex) {
+				$.ajax({
+					url: 'ajax.php',
+					type: 'POST',
+					dataType: 'json',
+					data: {
+						act: 'compensatetime',
+						app: formData.compensate_app,
+						expire_filter: formData.compensate_filter,
+						value: formData.compensate_value,
+						unit: formData.compensate_unit,
+						batch_size: 100,
+						start: processedCount
+					},
+					success: function(res) {
+						if(res.code == 1) {
+							// 更新进度提示
+							layer.msg('正在处理: ' + res.processed + '/' + res.total, {
+								icon: 16,
+								time: 1000
+							});
+							
+							if(res.has_more) {
+								processBatch(formData, res.processed, loadIndex);
+							} else {
+								layer.close(loadIndex);
+								showCompletionMessage(res);
+							}
+						} else {
+							layer.close(loadIndex);
+							layer.msg(res.msg || '操作失败', {
+								icon: 2,
+								time: 2000
+							});
+						}
+					},
+					error: function(xhr, status, error) {
+						layer.close(loadIndex);
+						layer.msg('请求失败: ' + error, {
+							icon: 2,
+							time: 2000
+						});
+					}
+				});
+			}
+
+			// 添加完成消息显示函数
+			function showCompletionMessage(res) {
+				var resultMsg = res.msg;
+				if(res.details) {
+					var unitText = {
+						'days': '天',
+						'hours': '小时', 
+						'minutes': '分钟'
+					}[res.unit] || '天';
+					
+					resultMsg += '<br>处理详情：<br>';
+					resultMsg += '- 补偿时间：' + res.value + unitText + '<br>';
+					resultMsg += '- 成功：' + res.details.success + '个<br>';
+					resultMsg += '- 失败：' + res.details.failed + '个<br>';
+					if(res.details.errors && res.details.errors.length > 0) {
+						resultMsg += '- 失败账号：<br>' + res.details.errors.join('<br>');
+					}
+				}
+				
+				layer.alert(resultMsg, {
+					icon: 1,
+					title: '补偿完成',
+					btn: ['确定'],
+					anim: 1,
+					shadeClose: true,
+					shade: 0.1,
+					yes: function(index) {
+						layer.close(index);
+						table.reload('server_list');
+						layer.closeAll();
+					}
+				});
+			}
 
 			// 优化其他消息提示
 			function showMsg(msg, icon) {
@@ -567,7 +637,7 @@ include("foot.php");
 					title: "新增用户",
 					area: ["400px", "400px"],
 					maxmin: false,
-					content: "newuser.php?v=20201111001"
+					content: "newuser.php?v=20201111001&preserve_case=1"
 				});
 			}
 
@@ -578,8 +648,7 @@ include("foot.php");
 						title: "编辑用户",
 						area: ["400px", "400px"],
 						maxmin: false,
-						//"edituser.php?user="+data.user+"&pwd="+data.pwd+"&use_date="+data.disabletime,
-						content: "edituser.php?user="+checkStatus.data[0].user+"&pwd="+checkStatus.data[0].pwd+"&use_date="+checkStatus.data[0].disabletime+"&serverip="+checkStatus.data[0].serverip,
+						content: "edituser.php?user="+encodeURIComponent(checkStatus.data[0].user)+"&pwd="+encodeURIComponent(checkStatus.data[0].pwd)+"&use_date="+checkStatus.data[0].disabletime+"&serverip="+checkStatus.data[0].serverip+"&preserve_case=1",
 						cancel: function(index, layero) {
 							reload("server_list");
 						}

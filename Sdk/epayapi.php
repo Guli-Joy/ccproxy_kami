@@ -6,11 +6,17 @@ if(!defined('IN_COMMON')) {
 
 // 检查请求安全性
 if (!$security->handleRequest()) {
-    $logger->security('支付接口请求被拦截', [
-        'ip' => $_SERVER['REMOTE_ADDR'],
-        'uri' => $_SERVER['REQUEST_URI']
-    ]);
-    die('非法请求');
+    // 检查是否为支付回调
+    $is_payment_callback = false;
+    if (isset($_POST['type']) && in_array($_POST['type'], ['alipay', 'wxpay', 'qqpay'])) {
+        if (isset($_POST['out_trade_no']) && isset($_POST['money'])) {
+            $is_payment_callback = true;
+        }
+    }
+    
+    if (!$is_payment_callback) {
+        die('非法请求');
+    }
 }
 
 // 只在session未启动时启动session
@@ -68,90 +74,93 @@ function validateToken($token) {
 }
 
 try {
-    // 验证来源站点
-    $referer = isset($_SERVER['HTTP_REFERER']) ? parse_url($_SERVER['HTTP_REFERER']) : '';
-    $current_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+    // 获取当前请求的主机名和来源
+    $current_host = $_SERVER['HTTP_HOST'];
+    $referer = $_SERVER['HTTP_REFERER'] ?? '';
+    $referer_info = parse_url($referer);
+    $referer_host = $referer_info['host'] ?? '';
     
-    if (empty($referer) || empty($referer['host'])) {
-        throw new Exception('非法请求来源: 缺少来源信息');
+    // 获取站点配置 - 使用单一查询
+    $sql = "SELECT * FROM sub_admin WHERE state = 1 AND (siteurl = ? OR (multi_domain = 1 AND domain_list LIKE ?)) LIMIT 1";
+    $domain_pattern = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $referer_host) . '%';
+    $row = $DB->getRow($sql, [$referer_host, $domain_pattern]);
+    
+    // 如果通过 referer 未找到，尝试使用当前域名
+    if (!$row) {
+        $row = $DB->getRow("SELECT * FROM sub_admin WHERE state = 1 AND siteurl = ? LIMIT 1", [$current_host]);
     }
     
-    // 获取数据库中的站点URL
-    $conn = mysqli_connect($dbconfig['host'], $dbconfig['user'], $dbconfig['pwd'], $dbconfig['dbname']);
-    if (!$conn) {
-        throw new Exception("数据库连接失败");
+    // 如果还是未找到，尝试本地测试环境
+    if (!$row && in_array($current_host, ['localhost', '127.0.0.1'])) {
+        $row = $DB->getRow("SELECT * FROM sub_admin WHERE state = 1 ORDER BY id ASC LIMIT 1");
     }
     
-    $query = "SELECT siteurl FROM sub_admin WHERE username='admin' LIMIT 1";
-    $result = mysqli_query($conn, $query);
-    if (!$result) {
-        mysqli_close($conn);
-        throw new Exception("获取站点配置失败");
-    }
-    
-    $row = mysqli_fetch_assoc($result);
-    mysqli_close($conn);
-    
-    if (empty($row['siteurl'])) {
-        throw new Exception("站点URL未配置");
-    }
-    
-    // 处理siteurl，确保它是一个完整的URL
-    $siteurl = $row['siteurl'];
-    if (strpos($siteurl, 'http://') !== 0 && strpos($siteurl, 'https://') !== 0) {
-        $siteurl = 'http://' . $siteurl;
-    }
-    
-    // 解析允许的域名
-    $allowed_url = parse_url($siteurl);
-    if (empty($allowed_url['host'])) {
-        throw new Exception("站点URL格式错误: " . $siteurl);
-    }
-    
-    // 比较主机名和端口
-    $referer_host = strtolower($referer['host']);
-    $referer_port = isset($referer['port']) ? ':'.$referer['port'] : '';
-    $allowed_host = strtolower($allowed_url['host']);
-    $allowed_port = isset($allowed_url['port']) ? ':'.$allowed_url['port'] : '';
-    
-    // 构建完整的主机字符串（包含端口）
-    $referer_full = $referer_host . $referer_port;
-    $allowed_full = $allowed_host . $allowed_port;
-    
-    // 如果配置的URL中没有指定端口，也接受当前请求的端口
-    if (empty($allowed_port)) {
-        // 从当前请求中提取端口
-        $current_parts = explode(':', $current_host);
-        $allowed_full = $allowed_host;
-        if (count($current_parts) > 1 && $referer_host === $allowed_host) {
-            $allowed_full = $current_host;
-        }
-    }
-    
-    if ($referer_full !== $allowed_full) {
-        throw new Exception(sprintf('非法请求来源: %s != %s', $referer_full, $allowed_full));
-    }
-    
-    // 验证令牌
-    if (!validateToken($_POST['token'])) {
-        throw new Exception('令牌验证失败');
+    if (!$row) {
+        throw new Exception('未找到站点配置');
     }
     
     // 验证参数
     validateParams($_POST);
     
-    // 构造支付参数
+    // 检查是否为支付回调
+    $is_payment_callback = false;
+    if (isset($_POST['type']) && in_array($_POST['type'], ['alipay', 'wxpay', 'qqpay'])) {
+        if (isset($_POST['out_trade_no']) && isset($_POST['money'])) {
+            $is_payment_callback = true;
+        }
+    }
+    
+    // 验证支付令牌
+    if (!isset($_POST['token']) || !validateToken($_POST['token'])) {
+        if (!$is_payment_callback) {
+            throw new Exception('支付令牌验证失败');
+        }
+    }
+    
+    // 确定要使用的域名
+    $use_domain = $row['siteurl']; // 默认使用主域名
+    
+    // 如果当前访问域名不是主域名，检查是否可以使用当前域名
+    if ($current_host !== $row['siteurl']) {
+        if ($row['multi_domain'] == 1 && !empty($row['domain_list'])) {
+            $domains = explode("\n", str_replace("\r", "", $row['domain_list']));
+            foreach ($domains as $domain) {
+                $domain = trim($domain);
+                if (!empty($domain)) {
+                    // 移除端口号进行比较
+                    $current_host_base = explode(':', $current_host)[0];
+                    $domain_base = explode(':', $domain)[0];
+                    
+                    if ($current_host_base === $domain_base) {
+                        // 当前域名在允许列表中，使用当前域名
+                        $use_domain = $current_host;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 如果当前域名不在允许列表中且不是主域名，拦截请求
+        if ($use_domain !== $current_host && $current_host !== $row['siteurl']) {
+            throw new Exception('非法的域名访问');
+        }
+    }
+    
+    // 确定协议
+    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https://' : 'http://';
+    
+    // 构造支付参数，使用确定的域名
     $parameter = array(
         "pid" => trim($epay_config['pid']),
         "type" => trim($_POST['type']),
         "out_trade_no" => trim($_POST['out_trade_no']),
-        "notify_url" => trim("http://".$row['siteurl']."/SDK/notify_url.php"),
-        "return_url" => trim("http://".$row['siteurl']."/SDK/return_url.php"),
+        "notify_url" => $scheme . $use_domain . "/SDK/notify_url.php",
+        "return_url" => $scheme . $use_domain . "/SDK/return_url.php",
         "name" => trim($_POST['name']),
         "money" => sprintf("%.2f", $_POST['money']),
         "sitename" => trim($_POST['sitename'])
     );
-
+    
     // 生成支付表单
     $epay = new EpayCore($epay_config);
     $html_text = $epay->pagePay($parameter);
@@ -161,9 +170,8 @@ try {
     
 } catch (Exception $e) {
     die(json_encode([
-        'code' => -1, 
-        'msg' => $e->getMessage(),
-        'time' => date('Y-m-d H:i:s')
+        'code' => -1,
+        'msg' => $e->getMessage()
     ]));
 }
 ?>

@@ -19,11 +19,21 @@ if ($conn->connect_error) {
 
 // 获取站点配置
 $site_urls = [];
-$sql = "SELECT siteurl FROM sub_admin WHERE state = 1";
+$sql = "SELECT siteurl, multi_domain, domain_list FROM sub_admin WHERE state = 1";
 $result = $conn->query($sql);
 if($result) {
     while($row = $result->fetch_assoc()) {
         $site_urls[] = $row['siteurl'];
+        // 添加多域名
+        if($row['multi_domain'] == 1 && !empty($row['domain_list'])) {
+            $domains = explode("\n", str_replace("\r", "", $row['domain_list']));
+            foreach($domains as $domain) {
+                $domain = trim($domain);
+                if(!empty($domain)) {
+                    $site_urls[] = $domain;
+                }
+            }
+        }
     }
 }
 
@@ -45,7 +55,10 @@ if ($result && $result->num_rows > 0) {
     
     if(empty($referer)) {
         // 如果是内网访问或支付回调，允许空referer
-        if(in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1']) || isset($_GET['trade_status'])) {
+        if(in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1']) || 
+           isset($_GET['trade_status']) || isset($_POST['trade_status']) ||
+           strpos($_SERVER['REQUEST_URI'], 'notify_url.php') !== false ||
+           strpos($_SERVER['REQUEST_URI'], 'return_url.php') !== false) {
             $request_valid = true;
         }
     } else {
@@ -86,7 +99,18 @@ if ($result && $result->num_rows > 0) {
                 if(strpos($site_url, 'http') !== 0) {
                     $site_url = 'http://' . $site_url;
                 }
-                if(rtrim($referer, '/') === rtrim($site_url, '/')) {
+                
+                // 移除末尾的斜杠进行比较
+                $site_url = rtrim($site_url, '/');
+                $referer_base = rtrim($referer_full, '/');
+                
+                if($referer_base === $site_url) {
+                    $request_valid = true;
+                    break;
+                }
+                
+                // 检查是否为支付相关请求
+                if(strpos($_SERVER['REQUEST_URI'], '/Sdk/') === 0) {
                     $request_valid = true;
                     break;
                 }
@@ -106,6 +130,24 @@ if ($result && $result->num_rows > 0) {
     }
     
     // 如果不是有效请求源，记录并返回错误
+    if(!$request_valid) {
+        // 检查是否为支付相关请求
+        if(strpos($_SERVER['REQUEST_URI'], '/Sdk/epayapi.php') !== false ||
+           strpos($_SERVER['REQUEST_URI'], '/Sdk/notify_url.php') !== false ||
+           strpos($_SERVER['REQUEST_URI'], '/Sdk/return_url.php') !== false) {
+            // 支付相关请求特殊处理
+            if(isset($_POST['type']) && in_array($_POST['type'], ['alipay', 'wxpay', 'qqpay'])) {
+                if(isset($_POST['out_trade_no']) && isset($_POST['money'])) {
+                    $request_valid = true;
+                }
+            }
+            // 支付回调验证
+            if(isset($_GET['trade_status']) || isset($_POST['trade_status'])) {
+                $request_valid = true;
+            }
+        }
+    }
+    
     if(!$request_valid) {
         die(json_encode(['code' => -1, 'msg' => 'Unauthorized request']));
     }

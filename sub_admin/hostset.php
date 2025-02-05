@@ -143,6 +143,30 @@ if (!($islogin == 1)) {
 								</div>
 							</div>
 
+							<!-- 域名设置 -->
+							<div class="setting-card">
+								<div class="card-title">域名设置</div>
+								<div class="card-content">
+									<div class="layui-form-item">
+										<label class="layui-form-label">主域名</label>
+										<div class="layui-input-block">
+											<input type="text" name="siteurl" class="layui-input" value="<?php echo $subconf['siteurl']; ?>" placeholder="请输入主域名">
+											<div class="layui-form-mid layui-word-aux">主要访问域名,如: example.com</div>
+										</div>
+									</div>
+									<div class="layui-form-item">
+										<label class="layui-form-label">多域名</label>
+										<div class="layui-input-block">
+											<input type="checkbox" name="multi_domain" lay-skin="switch" lay-text="开启|关闭" lay-filter="multi_domain" <?php echo($subconf["multi_domain"]==1 ? 'checked':'');?> />
+											<div class="domain-list" style="margin-top: 10px;<?php echo($subconf["multi_domain"]==0 ? 'display:none':'');?>">
+												<textarea name="domain_list" class="layui-textarea" placeholder="请输入其他域名,每行一个"><?php echo $subconf['domain_list']; ?></textarea>
+												<div class="layui-form-mid layui-word-aux">每行输入一个域名,如: domain1.com</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+
 							<!-- 底部按钮 -->
 							<div class="setting-footer">
 								<button class="layui-btn layui-btn-normal" lay-submit lay-filter="submit">
@@ -296,6 +320,15 @@ if (!($islogin == 1)) {
 					if(!$nightInput.val()) {
 						$nightInput.val('<?php echo addslashes($subconf['nightimg']); ?>');
 					}
+				}
+			});
+
+			// 处理多域名开关
+			form.on("switch(multi_domain)", function(obj) {
+				if(obj.elem.checked) {
+					$(".domain-list").show();
+				} else {
+					$(".domain-list").hide();
 				}
 			});
 

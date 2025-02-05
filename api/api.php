@@ -159,46 +159,47 @@ switch($act){
 
     case "createorder":
     case "createOrder":
-        $app = isset($_POST['app']) ? daddslashes($_POST['app']) : null;
-        $mode = isset($_POST['mode']) ? daddslashes($_POST['mode']) : null;
-        $account = isset($_POST['account']) ? daddslashes($_POST['account']) : null;
-        $password = isset($_POST['password']) ? daddslashes($_POST['password']) : null;
-        $package = isset($_POST['package']) ? daddslashes($_POST['package']) : null;
-        $pay_method = isset($_POST['pay_method']) ? daddslashes($_POST['pay_method']) : null;
-        $order_no = isset($_POST['order_no']) ? daddslashes($_POST['order_no']) : null;
-
-        if(!$app || !$mode || !$account || !$package || !$pay_method || !$order_no) {
-            exit(json_encode(['code'=>-1, 'msg'=>'参数不完整']));
-        }
-
-        // 检查应用是否存在且属于当前用户
-        $app_exists = $DB->selectRow("SELECT * FROM application WHERE appcode='".$app."' AND username='".$subconf['username']."'");
-        if(!$app_exists) {
-            exit(json_encode(['code'=>-1, 'msg'=>'应用不存在或无权限']));
-        }
-
-        // 检查套餐是否存在且有效，同时获取价格
-        $package_info = $DB->selectRow("SELECT id, price FROM packages WHERE id='".$package."' AND appcode='".$app."' AND status=1");
-        if(!$package_info) {
-            exit(json_encode(['code'=>-1, 'msg'=>'套餐不存在或已禁用']));
-        }
-
-        // 准备订单数据
-        $data = array(
-            'order_no' => $order_no,
-            'appcode' => $app,
-            'account' => $account,
-            'password' => $mode == 'register' ? $password : '',
-            'package_id' => $package,
-            'amount' => $package_info['price'],
-            'pay_type' => $pay_method,
-            'status' => 0,
-            'create_time' => date('Y-m-d H:i:s'),
-            'mode' => $mode,
-            'username' => $subconf["username"]
-        );
-
         try {
+            // 直接使用原始POST数据，避免经过SecurityFilter的处理
+            $app = isset($_REQUEST['app']) ? trim($_REQUEST['app']) : null;
+            $mode = isset($_REQUEST['mode']) ? trim($_REQUEST['mode']) : null;
+            $account = isset($_REQUEST['account']) ? trim($_REQUEST['account']) : null;
+            $password = isset($_REQUEST['password']) ? trim($_REQUEST['password']) : null;
+            $package = isset($_POST['package']) ? trim($_POST['package']) : null;
+            $pay_method = isset($_POST['pay_method']) ? trim($_POST['pay_method']) : null;
+            $order_no = isset($_POST['order_no']) ? trim($_POST['order_no']) : null;
+
+            if(!$app || !$mode || !$account || !$package || !$pay_method || !$order_no) {
+                exit(json_encode(['code'=>-1, 'msg'=>'参数不完整']));
+            }
+
+            // 检查应用是否存在且属于当前用户
+            $app_exists = $DB->selectRow("SELECT * FROM application WHERE appcode='" . $DB->escape($app) . "' AND username='".$DB->escape($subconf['username'])."'");
+            if(!$app_exists) {
+                exit(json_encode(['code'=>-1, 'msg'=>'应用不存在或无权限']));
+            }
+
+            // 检查套餐是否存在且有效，同时获取价格
+            $package_info = $DB->selectRow("SELECT id, price FROM packages WHERE id='" . $DB->escape($package) . "' AND appcode='" . $DB->escape($app) . "' AND status=1");
+            if(!$package_info) {
+                exit(json_encode(['code'=>-1, 'msg'=>'套餐不存在或已禁用']));
+            }
+
+            // 准备订单数据
+            $data = array(
+                'order_no' => $order_no,
+                'appcode' => $app,
+                'account' => $account,  // 直接使用原始值
+                'password' => $mode == 'register' ? $password : '',  // 直接使用原始值
+                'package_id' => $package,
+                'amount' => $package_info['price'],
+                'pay_type' => $pay_method,
+                'status' => 0,
+                'create_time' => date('Y-m-d H:i:s'),
+                'mode' => $mode,
+                'username' => $subconf["username"]
+            );
+
             $insert = $DB->insert('orders', $data);
             if($insert) {
                 exit(json_encode([

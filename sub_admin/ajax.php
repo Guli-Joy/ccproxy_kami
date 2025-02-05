@@ -109,41 +109,13 @@ switch ($act) {
     case "delapp":
         if (isset($_POST['appcode'])) {
 
-            // $getServer=$DB->select("SELECT id,applist FROM server_list");
-                
-            // foreach($getServer as $item)
-            // {
-            //     $strArr=explode(",",$item["applist"]);
-            //     $applist="";
-            //     foreach($strArr as $app)
-            //     {
-            //         if($app==$_POST['appcode'])
-            //         {
-            //             continue;
-            //         }
-            //         if(!empty($app))
-            //         {
-            //             $applist.=$app;
-            //         }
-            //     }
-            //     $updateServer=$DB->exe("UPDATE server_list SET applist='".$applist."' where id=".$item["id"]."");
-            //     var_dump("UPDATE server_list SET applist='".$applist."' where id=".$item["id"]."");
-            // }
-
             $exesql = $DB->delete("application", "where appcode=\"" . $_REQUEST['appcode'] . "\"");
-
-            
 
             if ($exesql) {
                 $code = [
                     "code" => "1",
                     "msg" => "删除成功"
                 ];
-
-               
-
-               
-
 
                 WriteLog("删除应用", "删除了" . $_REQUEST['appcode'], $subconf['username'], $DB);
                 exit(json_encode($code, JSON_UNESCAPED_UNICODE));
@@ -741,16 +713,34 @@ switch ($act) {
             }
 
             // 验证参数
-            if(!isset($_POST['app']) || !isset($_POST['expire_filter']) || !isset($_POST['days'])) {
+            if(!isset($_POST['app']) || !isset($_POST['expire_filter']) || 
+               !isset($_POST['value']) || !isset($_POST['unit'])) {
                 throw new Exception('缺少必要参数');
             }
 
             $app = SecurityFilter::filterInput($_POST['app']);
             $expire_filter = SecurityFilter::filterInput($_POST['expire_filter']);
-            $days = intval($_POST['days']);
+            $value = floatval($_POST['value']);
+            $unit = SecurityFilter::filterInput($_POST['unit']);
             
-            if($days <= 0) {
-                throw new Exception('补偿天数必须大于0');
+            if($value <= 0) {
+                throw new Exception('补偿时间必须大于0');
+            }
+
+            // 将不同单位转换为天数
+            $days = 0;
+            switch($unit) {
+                case 'days':
+                    $days = $value;
+                    break;
+                case 'hours':
+                    $days = $value / 24;
+                    break;
+                case 'minutes':
+                    $days = $value / (24 * 60);
+                    break;
+                default:
+                    throw new Exception('无效的时间单位');
             }
 
             // 获取应用对应的服务器信息
@@ -804,9 +794,10 @@ switch ($act) {
                         }
 
                         // 计算新的到期时间
+                        $compensation = "+{$value} {$unit}";
                         $new_time = $is_expired 
-                            ? date('Y-m-d H:i:s', strtotime($current_time . " +{$days} days"))
-                            : date('Y-m-d H:i:s', strtotime($user['disabletime'] . " +{$days} days"));
+                            ? date('Y-m-d H:i:s', strtotime($current_time . " " . $compensation))
+                            : date('Y-m-d H:i:s', strtotime($user['disabletime'] . " " . $compensation));
 
                         // 更新用户时间
                         $update_result = UserUpdate(
@@ -825,13 +816,14 @@ switch ($act) {
                         if($update_result && isset($update_result['code']) && $update_result['code'] == "1") {
                             $success++;
                             WriteLog("补偿时间", sprintf(
-                                "用户:%s, 补偿%d天, 原到期时间:%s, 新到期时间:%s", 
+                                "用户:%s, 补偿%g%s, 原到期时间:%s, 新到期时间:%s", 
                                 $user['user'],
-                                $days,
+                                $value,
+                                $unit == 'days' ? '天' : ($unit == 'hours' ? '小时' : '分钟'),
                                 $user['disabletime'],
                                 $new_time
                             ), $subconf['username'], $DB);
-        } else {
+                        } else {
                             throw new Exception(sprintf(
                                 "更新失败: %s", 
                                 isset($update_result['msg']) ? $update_result['msg'] : '未知错误'
@@ -872,7 +864,9 @@ switch ($act) {
                     'failed' => $failed,
                     'skipped' => $skipped,
                     'errors' => $errors
-                ]
+                ],
+                'value' => $value,
+                'unit' => $unit
             ];
 
             if($failed > 0) {
@@ -1022,16 +1016,34 @@ switch ($act) {
             }
 
             // 验证参数
-            if(!isset($_POST['app']) || !isset($_POST['expire_filter']) || !isset($_POST['days'])) {
+            if(!isset($_POST['app']) || !isset($_POST['expire_filter']) || 
+               !isset($_POST['value']) || !isset($_POST['unit'])) {
                 throw new Exception('缺少必要参数');
             }
 
             $app = SecurityFilter::filterInput($_POST['app']);
             $expire_filter = SecurityFilter::filterInput($_POST['expire_filter']);
-            $days = intval($_POST['days']);
+            $value = floatval($_POST['value']);
+            $unit = SecurityFilter::filterInput($_POST['unit']);
             
-            if($days <= 0) {
-                throw new Exception('补偿天数必须大于0');
+            if($value <= 0) {
+                throw new Exception('补偿时间必须大于0');
+            }
+
+            // 将不同单位转换为天数
+            $days = 0;
+            switch($unit) {
+                case 'days':
+                    $days = $value;
+                    break;
+                case 'hours':
+                    $days = $value / 24;
+                    break;
+                case 'minutes':
+                    $days = $value / (24 * 60);
+                    break;
+                default:
+                    throw new Exception('无效的时间单位');
             }
 
             // 获取应用对应的服务器信息
@@ -1085,9 +1097,10 @@ switch ($act) {
                         }
 
                         // 计算新的到期时间
+                        $compensation = "+{$value} {$unit}";
                         $new_time = $is_expired 
-                            ? date('Y-m-d H:i:s', strtotime($current_time . " +{$days} days"))
-                            : date('Y-m-d H:i:s', strtotime($user['disabletime'] . " +{$days} days"));
+                            ? date('Y-m-d H:i:s', strtotime($current_time . " " . $compensation))
+                            : date('Y-m-d H:i:s', strtotime($user['disabletime'] . " " . $compensation));
 
                         // 更新用户时间
                         $update_result = UserUpdate(
@@ -1106,9 +1119,10 @@ switch ($act) {
                         if($update_result && isset($update_result['code']) && $update_result['code'] == "1") {
                             $success++;
                             WriteLog("补偿时间", sprintf(
-                                "用户:%s, 补偿%d天, 原到期时间:%s, 新到期时间:%s", 
+                                "用户:%s, 补偿%g%s, 原到期时间:%s, 新到期时间:%s", 
                                 $user['user'],
-                                $days,
+                                $value,
+                                $unit == 'days' ? '天' : ($unit == 'hours' ? '小时' : '分钟'),
                                 $user['disabletime'],
                                 $new_time
                             ), $subconf['username'], $DB);
@@ -1153,7 +1167,9 @@ switch ($act) {
                     'failed' => $failed,
                     'skipped' => $skipped,
                     'errors' => $errors
-                ]
+                ],
+                'value' => $value,
+                'unit' => $unit
             ];
 
             if($failed > 0) {
@@ -1720,20 +1736,37 @@ switch ($act) {
     case "userupdate":
         $usermodel = $_POST["usermodel"];
         if (isset($usermodel) && is_array($usermodel) && !empty($usermodel)) {
+            // 保持用户名原始大小写
+            $usermodel["olduser"] = trim($usermodel["olduser"]); // 只去除空格，不转换大小写
+            $usermodel["newuser"] = trim($usermodel["newuser"]); // 只去除空格，不转换大小写
+            
             if(!empty($usermodel["connection"])&&!is_numeric($usermodel["connection"])){
-                exit(json_encode( $code = [ "code" => "-1",  "msg" => "输入类型错误",  "kami" => $kami], JSON_UNESCAPED_UNICODE));
+                exit(json_encode( $code = [ "code" => "-1",  "msg" => "输入类型错误"], JSON_UNESCAPED_UNICODE));
             }
             if(!empty($usermodel["bandwidthup"])&&!is_numeric($usermodel["bandwidthup"])){
-                exit(json_encode( $code = [ "code" => "-1",  "msg" => "输入类型错误",  "kami" => $kami], JSON_UNESCAPED_UNICODE));
+                exit(json_encode( $code = [ "code" => "-1",  "msg" => "输入类型错误"], JSON_UNESCAPED_UNICODE));
             }
             if(!empty($usermodel["bandwidthdown"])&&!is_numeric($usermodel["bandwidthdown"])){
-                exit(json_encode( $code = [ "code" => "-1",  "msg" => "输入类型错误",  "kami" => $kami], JSON_UNESCAPED_UNICODE));
+                exit(json_encode( $code = [ "code" => "-1",  "msg" => "输入类型错误"], JSON_UNESCAPED_UNICODE));
             }
             if($usermodel["connection"]<=0) {
                 $usermodel["connection"]=-1;
             }
             $server = $DB->selectRow("select ip,serveruser,password,cport from server_list where ip='" . $usermodel['serverip'] . "'");
-            $result = UserUpdate($server["password"], $server["cport"], $server["ip"], $usermodel["olduser"], $usermodel["pwd"], $usermodel["day"],$usermodel["connection"],$usermodel["bandwidthup"]<=0?-1:$usermodel["bandwidthup"]*1024,$usermodel["bandwidthdown"]<=0?-1:$usermodel["bandwidthdown"]*1024,"0",$usermodel["newuser"]);
+            $result = UserUpdate(
+                $server["password"], 
+                $server["cport"], 
+                $server["ip"], 
+                $usermodel["olduser"], // 使用原始大小写
+                $usermodel["pwd"], 
+                $usermodel["day"],
+                $usermodel["connection"],
+                $usermodel["bandwidthup"]<=0?-1:$usermodel["bandwidthup"]*1024,
+                $usermodel["bandwidthdown"]<=0?-1:$usermodel["bandwidthdown"]*1024,
+                "0",
+                $usermodel["newuser"] // 使用原始大小写
+            );
+            
             $logContent = sprintf(
                 "用户编辑 [%s] - 新用户名：%s，密码：%s，天数：%s，连接数：%s，上行带宽：%s，下行带宽：%s，服务器：%s",
                 $usermodel["olduser"],
@@ -1752,13 +1785,16 @@ switch ($act) {
     case "adduser":
         $user_data = $_POST["userdata"];
         if (isset($user_data) && is_array($user_data)) {
+            // 保持用户名原始大小写
+            $user_data['user'] = trim($user_data['user']); // 只去除空格，不转换大小写
+            
             $app = $user_data["app"];
             $ip = $DB->select("select serverip from application where appcode='$app'")[0];
             $server = $DB->selectRow("select ip,serveruser,password,cport from server_list where ip='" . $ip['serverip'] . "'");
             $code = AddUser($server["ip"], $server["password"], $server["cport"], $user_data);
             $logContent = sprintf(
                 "添加用户：%s，应用：%s，服务器：%s", 
-                $user_data['user'],
+                $user_data['user'], // 使用原始用户名记录日志
                 $app,
                 $server["ip"]
             );
@@ -1813,28 +1849,79 @@ switch ($act) {
         exit(json_encode($code, JSON_UNESCAPED_UNICODE));
         break;
         case "updateset":
-            $result = ['user_key', 'kf', 'pan', 'ggswitch', 'wzgg', 'logo', 'kfswitch', 'panswitch', 'bgswitch', 'dayimg', 'nightimg'];
+            $result = ['user_key', 'kf', 'pan', 'ggswitch', 'wzgg', 'logo', 'kfswitch', 'panswitch', 'bgswitch', 'dayimg', 'nightimg', 'siteurl', 'multi_domain', 'domain_list'];
             $gg = isset($_POST['ggswitch']) ? 1 : 0;
             $kf = isset($_POST['kfswitch']) ? 1 : 0;
             $pan = isset($_POST['panswitch']) ? 1 : 0;
             $bg = isset($_POST['bgswitch']) ? 1 : 0;
+            $multi_domain = isset($_POST['multi_domain']) ? 1 : 0;
+            
+            // 验证主域名格式
+            if(empty($_POST['siteurl'])) {
+                exit(json_encode(['code'=>0, 'msg'=>'主域名不能为空'], JSON_UNESCAPED_UNICODE));
+            }
+            
+            // 验证主域名格式
+            $siteurl = trim($_POST['siteurl']);
+            if(!preg_match('/^(([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(\:[0-9]{1,5})?$/', $siteurl)) {
+                exit(json_encode(['code'=>0, 'msg'=>'主域名格式错误:'.$siteurl."\n支持格式:\n1. 域名: example.com\n2. 域名+端口: example.com:8080\n3. IP: 192.168.1.1\n4. IP+端口: 192.168.1.1:8080"], JSON_UNESCAPED_UNICODE));
+            }
+            // 验证主域名端口
+            if(strpos($siteurl, ':') !== false) {
+                $port = explode(':', $siteurl)[1];
+                if($port < 1 || $port > 65535) {
+                    exit(json_encode(['code'=>0, 'msg'=>'端口号必须在1-65535之间:'.$siteurl], JSON_UNESCAPED_UNICODE));
+                }
+            }
+
+            // 验证多域名格式 - 仅在多域名开关打开时验证
+            $domain_list = isset($_POST['domain_list']) ? $_POST['domain_list'] : '';
+            if($multi_domain == 1 && !empty($domain_list)) {
+                $domains = explode("\n", str_replace("\r", "", $domain_list));
+                foreach($domains as $domain) {
+                    $domain = trim($domain);
+                    if(!empty($domain)) {
+                        if(!preg_match('/^(([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(\:[0-9]{1,5})?$/', $domain)) {
+                            exit(json_encode(['code'=>0, 'msg'=>'域名/IP格式错误:'.$domain."\n支持格式:\n1. 域名: example.com\n2. 域名+端口: example.com:8080\n3. IP: 192.168.1.1\n4. IP+端口: 192.168.1.1:8080"], JSON_UNESCAPED_UNICODE));
+                        }
+                        if(strpos($domain, ':') !== false) {
+                            $port = explode(':', $domain)[1];
+                            if($port < 1 || $port > 65535) {
+                                exit(json_encode(['code'=>0, 'msg'=>'端口号必须在1-65535之间:'.$domain], JSON_UNESCAPED_UNICODE));
+                            }
+                        }
+                    }
+                }
+                // 清理空行并重新组合
+                $domain_list = implode("\n", array_filter(array_map('trim', $domains)));
+            }
             
             $flag = true;
             foreach ($result as $post) {
-                if($post != 'ggswitch' && $post != 'kfswitch' && $post != 'panswitch' && $post != 'bgswitch' && $post != 'wzgg') {
+                if($post != 'ggswitch' && $post != 'kfswitch' && $post != 'panswitch' && 
+                   $post != 'bgswitch' && $post != 'wzgg' && $post != 'multi_domain' && 
+                   $post != 'domain_list') {
                     $flag = isset($_POST[$post]);
                     if(!$flag) break;
                 }
             }
             
             if ($flag) {
-                $sql = "UPDATE sub_admin SET hostname=\"" . addslashes($_POST["user_key"]) . "\", kf=\"" . addslashes($_POST["kf"]) . "\", pan=\"" . addslashes($_POST["pan"]) . "\", img=\"" . addslashes($_POST["logo"]) . "\"  ";
-                $sql .= ",ggswitch='" . $gg . "'";
-                $sql .= ",kfswitch='" . $kf . "'";
-                $sql .= ",panswitch='" . $pan . "'";
-                $sql .= ",bgswitch='" . $bg . "'";
-                $sql .= ",dayimg='" . addslashes($_POST["dayimg"]) . "'";
-                $sql .= ",nightimg='" . addslashes($_POST["nightimg"]) . "'";
+                $sql = "UPDATE sub_admin SET 
+                    hostname=\"" . addslashes($_POST["user_key"]) . "\", 
+                    kf=\"" . addslashes($_POST["kf"]) . "\", 
+                    pan=\"" . addslashes($_POST["pan"]) . "\", 
+                    img=\"" . addslashes($_POST["logo"]) . "\",
+                    siteurl=\"" . addslashes($_POST["siteurl"]) . "\",
+                    multi_domain='" . $multi_domain . "',
+                    domain_list='" . addslashes($domain_list) . "',
+                    ggswitch='" . $gg . "',
+                    kfswitch='" . $kf . "',
+                    panswitch='" . $pan . "',
+                    bgswitch='" . $bg . "',
+                    dayimg='" . addslashes($_POST["dayimg"]) . "',
+                    nightimg='" . addslashes($_POST["nightimg"]) . "'";
+                    
                 $sql .= $gg == 0 ? "" : ",wzgg='" . trim(addslashes(str_replace(array("'"), array('"'), $_POST["wzgg"]))) . "'";
                 
                 // 添加功能开关的保存
@@ -1849,13 +1936,14 @@ switch ($act) {
                 $sql .= ",show_user_search='" . $show_user_search . "'";
                 
                 $sql .= " WHERE username=\"" . addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $subconf['username'])) . "\" ";
+                
                 $result = $DB->exe($sql);
                 if ($result) {
                     $code = [
                         "code" => "1",
                         "msg" => "保存成功"
                     ];
-                    WriteLog("更新网站设置", "设置内容不详", $subconf['username'], $DB);
+                    WriteLog("更新网站设置", "更新了网站设置", $subconf['username'], $DB);
                 } else {
                     $code = [
                         "code" => "0",
