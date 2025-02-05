@@ -48,7 +48,15 @@ class SecurityFilter {
             'merchant_id',  // 商户ID
             'merchant_key', // 商户密钥
             'notify_url',   // 通知回调地址
-            'return_url'    // 支付返回地址
+            'return_url',   // 支付返回地址
+            // 应用配置相关字段
+            'appcode',      // 应用代码
+            'app_name',     // 应用名称
+            'appname',      // 应用名称
+            'server_address', // 服务器地址
+            'server_port',  // 服务器端口
+            'download_url', // 下载地址
+            'special_notes' // 特殊说明
         ];
 
         // 检查是否是支付相关请求

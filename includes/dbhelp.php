@@ -354,7 +354,16 @@ class SpringMySQLi
      */
     public function delete($table, $where)
     {
-        $this->querySql = "DELETE LOW_PRIORITY FROM {$table} {$where}";
+        // 如果where条件是纯数字ID，添加WHERE关键字
+        if (is_numeric($where)) {
+            $where = "WHERE id = " . intval($where);
+        }
+        // 如果where条件是字符串但没有WHERE关键字，添加它
+        else if (is_string($where) && stripos($where, 'WHERE') === false) {
+            $where = "WHERE " . $where;
+        }
+
+        $this->querySql = "DELETE FROM {$table} {$where}";
 
         $queryResult = false;
         if ($this->connect()) {
@@ -365,8 +374,13 @@ class SpringMySQLi
 
             if (false === $queryResult) {
                 $this->fetchError();
+                error_log("Delete query failed: " . $this->errMsg . "\nSQL: " . $this->querySql);
             } else {
                 $queryRows = $this->dbConn->affected_rows;
+                if ($queryRows === 0) {
+                    // 如果没有行被影响，但SQL执行成功，也认为是成功的
+                    $queryResult = true;
+                }
             }
 
             $this->runCount++;

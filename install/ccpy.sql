@@ -286,6 +286,30 @@ VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQ
 UNLOCK TABLES;
 
 --
+-- Table structure for table `package_apps`
+--
+
+DROP TABLE IF EXISTS `package_apps`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `package_apps` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `appcode` varchar(32) NOT NULL COMMENT '关联应用代码',
+  `app_name` varchar(64) NOT NULL COMMENT '应用名称',
+  `server_address` varchar(255) NOT NULL COMMENT '服务器地址',
+  `server_port` varchar(32) NOT NULL COMMENT '服务器端口',
+  `download_url` varchar(255) NOT NULL COMMENT '下载地址',
+  `special_notes` text COMMENT '特殊说明',
+  `sort_order` int(11) DEFAULT '0' COMMENT '排序',
+  `status` tinyint(1) NOT NULL DEFAULT '1' COMMENT '状态(0:禁用,1:启用)',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `appcode` (`appcode`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='应用配置信息表';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Dumping events for database 'ccproxy'
 --
 

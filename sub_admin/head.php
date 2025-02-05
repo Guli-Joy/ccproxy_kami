@@ -126,6 +126,7 @@ if (!($islogin == 1)) {
 						</a>
 						<dl class="layui-nav-child">
 							<dd><a href="packages.php"><span>套餐配置</span></a></dd>
+							<dd><a href="package_apps.php"><span>套餐应用配置</span></a></dd>
 						</dl>
 					</li>
 					<li class="layui-nav-item">

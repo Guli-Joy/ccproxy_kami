@@ -52,72 +52,125 @@ require_once("../config.php");
                     die("连接失败: " . $conn->connect_error);
                 }
 
-                $stmt = $conn->prepare("SELECT o.*, p.days FROM orders o LEFT JOIN packages p ON o.package_id = p.id WHERE o.order_no = ?");
-                $stmt->bind_param("s", $out_trade_no);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $order = $result->fetch_assoc();
-                $stmt->close();
-                $conn->close();
+                try {
+                    // 获取订单信息
+                    $stmt = $conn->prepare("SELECT o.*, p.days FROM orders o LEFT JOIN packages p ON o.package_id = p.id WHERE o.order_no = ?");
+                    if($stmt === false) {
+                        throw new Exception("准备订单查询语句失败");
+                    }
+                    
+                    $stmt->bind_param("s", $out_trade_no);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $order = $result->fetch_assoc();
+                    $stmt->close();
 
-                if ($order) {
-                    if ($order['status'] == 1) {
-                        // 显示账号信息
-                        echo '<div class="account-info card">';
-                        echo '<div class="title"><i class="fas fa-user-circle"></i>账号信息</div>';
-                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-user"></i>账号</span><span class="info-value">'.$order['account'].'</span></div>';
-                        if ($order['mode'] == 'register') {
-                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-key"></i>密码</span><span class="info-value">'.$order['password'].'</span></div>';
-                        }
-                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-clock"></i>套餐时长</span><span class="info-value">'.$order['days'].'天</span></div>';
-                        echo '</div>';
-
-                        $ch = curl_init();
-                        $post_data = array(
-                            'user' => $order['account'],
-                            'appcode' => $order['appcode']
-                        );
-                        
-                        $api_url = dirname(dirname($_SERVER['PHP_SELF'])) . "/api/cpproxy.php?type=query";
-                        curl_setopt($ch, CURLOPT_URL, $api_url);
-                        curl_setopt($ch, CURLOPT_POST, 1);
-                        curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_FAILONERROR, true);
-                        
-                        $response = curl_exec($ch);
-                        curl_close($ch);
-                        
-                        echo '<div class="status-header">';
-                        echo '<div class="status-success"><i class="fas fa-check-circle status-icon"></i><br>支付成功</div>';
-                        echo '</div>';
-                        
-                        echo '<div class="order-info card">';
-                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-hashtag"></i>订单编号</span><span class="info-value">'.$out_trade_no.'</span></div>';
-                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-receipt"></i>交易号</span><span class="info-value">'.$trade_no.'</span></div>';
-                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-credit-card"></i>支付方式</span><span class="info-value">'.(isset($pay_type_names[$type]) ? $pay_type_names[$type] : $type).'</span></div>';
-                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-yen-sign"></i>支付金额</span><span class="info-value">￥'.$money.'</span></div>';
-                        echo '</div>';
-                        
-                        $query_result = json_decode($response, true);
-                        if ($query_result && $query_result['code'] == 1) {
-                            if (preg_match('/到期时间：([\d-: ]+)/', $query_result['msg'], $matches)) {
-                                echo '<div class="expiry-time card">';
-                                echo '<div class="title"><i class="fas fa-calendar-check"></i>账号到期时间</div>';
-                                echo '<div class="value">'.$matches[1].'</div>';
-                                echo '</div>';
+                    if ($order) {
+                        if ($order['status'] == 1) {
+                            // 获取套餐应用信息
+                            $stmt = $conn->prepare("SELECT pa.* FROM package_apps pa 
+                                                  LEFT JOIN application a ON pa.appcode = a.appcode 
+                                                  WHERE pa.appcode = ? AND pa.status = 1 
+                                                  ORDER BY pa.sort_order ASC");
+                            if($stmt === false) {
+                                throw new Exception("准备应用配置查询语句失败");
                             }
+                            
+                            $stmt->bind_param("s", $order['appcode']);
+                            $stmt->execute();
+                            $apps_result = $stmt->get_result();
+                            $apps = [];
+                            while($app = $apps_result->fetch_assoc()) {
+                                $apps[] = $app;
+                            }
+                            $stmt->close();
+
+                            // 显示账号信息
+                            echo '<div class="account-info card">';
+                            echo '<div class="title"><i class="fas fa-user-circle"></i>账号信息</div>';
+                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-user"></i>账号</span><span class="info-value">'.$order['account'].'</span></div>';
+                            if ($order['mode'] == 'register') {
+                                echo '<div class="info-item"><span class="info-label"><i class="fas fa-key"></i>密码</span><span class="info-value">'.$order['password'].'</span></div>';
+                            }
+                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-clock"></i>套餐时长</span><span class="info-value">'.$order['days'].'天</span></div>';
+                            echo '</div>';
+
+                            // 显示应用配置信息
+                            if (!empty($apps)) {
+                                foreach($apps as $app) {
+                                    echo '<div class="account-info card">';
+                                    echo '<div class="title"><i class="fas fa-cube"></i>'.$app['app_name'].'</div>';
+                                    echo '<div class="info-item"><span class="info-label"><i class="fas fa-server"></i>服务器地址</span><span class="info-value">'.$app['server_address'].'</span></div>';
+                                    echo '<div class="info-item"><span class="info-label"><i class="fas fa-network-wired"></i>端口</span><span class="info-value">'.$app['server_port'].'</span></div>';
+                                    if (!empty($app['download_url'])) {
+                                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-download"></i>下载地址</span><span class="info-value"><a href="'.$app['download_url'].'" target="_blank" class="download-link">点击下载</a></span></div>';
+                                    }
+                                    if (!empty($app['special_notes'])) {
+                                        echo '<div class="info-item"><span class="info-label"><i class="fas fa-info-circle"></i>特别说明</span><span class="info-value">'.$app['special_notes'].'</span></div>';
+                                    }
+                                    echo '</div>';
+                                }
+                            }
+
+                            // 查询账号状态
+                            $ch = curl_init();
+                            $post_data = array(
+                                'user' => $order['account'],
+                                'appcode' => $order['appcode']
+                            );
+                            
+                            $api_url = dirname(dirname($_SERVER['PHP_SELF'])) . "/api/cpproxy.php?type=query";
+                            curl_setopt($ch, CURLOPT_URL, $api_url);
+                            curl_setopt($ch, CURLOPT_POST, 1);
+                            curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
+                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($ch, CURLOPT_FAILONERROR, true);
+                            
+                            $response = curl_exec($ch);
+                            curl_close($ch);
+                            
+                            echo '<div class="status-header">';
+                            echo '<div class="status-success"><i class="fas fa-check-circle status-icon"></i><br>支付成功</div>';
+                            echo '</div>';
+                            
+                            echo '<div class="order-info card">';
+                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-hashtag"></i>订单编号</span><span class="info-value">'.$out_trade_no.'</span></div>';
+                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-receipt"></i>交易号</span><span class="info-value">'.$trade_no.'</span></div>';
+                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-credit-card"></i>支付方式</span><span class="info-value">'.(isset($pay_type_names[$type]) ? $pay_type_names[$type] : $type).'</span></div>';
+                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-yen-sign"></i>支付金额</span><span class="info-value">￥'.$money.'</span></div>';
+                            echo '</div>';
+                            
+                            $query_result = json_decode($response, true);
+                            if ($query_result && $query_result['code'] == 1) {
+                                if (preg_match('/到期时间：([\d-: ]+)/', $query_result['msg'], $matches)) {
+                                    echo '<div class="expiry-time card">';
+                                    echo '<div class="title"><i class="fas fa-calendar-check"></i>账号到期时间</div>';
+                                    echo '<div class="value">'.$matches[1].'</div>';
+                                    echo '</div>';
+                                }
+                            }
+                        } else {
+                            echo '<div class="status-waiting card">';
+                            echo '<div class="title"><i class="fas fa-spinner fa-spin"></i>订单处理中</div>';
+                            echo '<div class="refresh-tip"><i class="fas fa-sync-alt"></i>正在等待支付结果，页面将自动刷新</div>';
+                            echo '</div>';
+                            echo '<script>
+                                setTimeout(function() {
+                                    window.location.reload();
+                                }, 2000); // 每2秒刷新一次
+                            </script>';
                         }
-                    } else {
-                        echo '<div class="status-waiting card">';
-                        echo '<div class="title"><i class="fas fa-spinner fa-spin"></i>订单处理中</div>';
-                        echo '<div class="refresh-tip"><i class="fas fa-sync-alt"></i>正在等待支付结果，页面将自动刷新</div>';
-                        echo '</div>';
-                        echo '<script>
-                            setTimeout(function() {
-                                window.location.reload();
-                            }, 2000); // 每2秒刷新一次
-                        </script>';
+                    }
+                } catch (Exception $e) {
+                    error_log("支付回调处理错误: " . $e->getMessage());
+                    echo '<div class="status-header">';
+                    echo '<div class="status-failed"><i class="fas fa-times-circle status-icon"></i><br>处理失败</div>';
+                    echo '</div>';
+                    echo '<div class="error-message">订单处理出现错误，请联系客服</div>';
+                } finally {
+                    // 确保数据库连接被关闭
+                    if(isset($conn)) {
+                        $conn->close();
                     }
                 }
             } else {
@@ -146,3 +199,13 @@ require_once("../config.php");
         </div>
     </body>
 </html>
+
+<style>
+.download-link {
+    color: #2d8cf0;
+    text-decoration: none;
+}
+.download-link:hover {
+    color: #5cadff;
+}
+</style>

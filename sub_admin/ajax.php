@@ -2152,6 +2152,329 @@ switch ($act) {
             'details' => $task['details'] ?? null
         ]));
         break;
+
+    case 'getpackageapps':
+        try {
+            $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
+            $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 20;
+            $offset = ($page - 1) * $limit;
+            
+            // 构建查询条件
+            $where = [];
+            $where[] = "pa.appcode IN (SELECT appcode FROM application WHERE username='" . $DB->escape($subconf['username']) . "')";
+            
+            // 应用筛选
+            if(!empty($_GET['appcode'])) {
+                $where[] = "pa.appcode = '" . $DB->escape($_GET['appcode']) . "'";
+            }
+            
+            // 应用名称筛选
+            if(!empty($_GET['app_name'])) {
+                $where[] = "pa.app_name LIKE '%" . $DB->escape($_GET['app_name']) . "%'";
+            }
+            
+            $where_clause = implode(' AND ', $where);
+
+            // 获取总数
+            $count_sql = "SELECT COUNT(*) as total FROM package_apps pa WHERE $where_clause";
+            $count_result = $DB->selectRow($count_sql);
+            $total = $count_result ? intval($count_result['total']) : 0;
+
+            // 获取应用配置列表
+            $sql = "SELECT pa.*, a.appname 
+                   FROM package_apps pa 
+                   LEFT JOIN application a ON pa.appcode = a.appcode 
+                   WHERE $where_clause 
+                   ORDER BY pa.sort_order ASC, pa.id DESC 
+                   LIMIT $offset, $limit";
+            
+            $apps = $DB->select($sql);
+            
+            // 处理数据
+            if($apps) {
+                foreach($apps as &$app) {
+                    // 格式化时间
+                    $app['create_time'] = date('Y-m-d H:i:s', strtotime($app['create_time']));
+                    $app['update_time'] = date('Y-m-d H:i:s', strtotime($app['update_time']));
+                    // 不再转换下载地址为按钮
+                }
+            }
+            
+            exit(json_encode([
+                'code' => 0,
+                'msg' => '',
+                'count' => $total,
+                'data' => $apps ?: []
+            ], JSON_UNESCAPED_UNICODE));
+
+        } catch (Exception $e) {
+            exit(json_encode([
+                'code' => 1,
+                'msg' => '获取应用配置列表失败：' . $e->getMessage(),
+                'count' => 0,
+                'data' => []
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        break;
+
+    case 'getapps':  // 改为小写
+        try {
+            $sql = "SELECT appcode, appname FROM application WHERE username='" . $DB->escape($subconf['username']) . "' ORDER BY appname ASC";
+            $apps = $DB->select($sql);
+            
+            exit(json_encode([
+                'code' => 1,
+                'msg' => '',
+                'data' => $apps ?: []
+            ], JSON_UNESCAPED_UNICODE));
+        } catch (Exception $e) {
+            exit(json_encode([
+                'code' => -1,
+                'msg' => '获取应用列表失败：' . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        break;
+
+    case 'addpackageapp':  // 改为小写
+        try {
+            // 验证必填参数
+            $required = ['appcode', 'app_name', 'server_address', 'server_port'];
+            foreach($required as $field) {
+                if(!isset($_POST[$field]) || trim($_POST[$field]) === '') {
+                    throw new Exception('请填写完整信息');
+                }
+            }
+            
+            // 验证端口号
+            if(!is_numeric($_POST['server_port']) || $_POST['server_port'] < 1 || $_POST['server_port'] > 65535) {
+                throw new Exception('端口号必须在1-65535之间');
+            }
+            
+            // 验证权限
+            $app = $DB->selectRow("SELECT * FROM application WHERE appcode = '" . $DB->escape($_POST['appcode']) . 
+                                 "' AND username = '" . $DB->escape($subconf['username']) . "'");
+            if(!$app) {
+                throw new Exception('无权操作此应用');
+            }
+            
+            // 检查应用是否已经配置过
+            $check = $DB->selectRow("SELECT id FROM package_apps WHERE appcode = '" . $DB->escape($_POST['appcode']) . "'");
+            if($check) {
+                throw new Exception('该应用已配置，请勿重复添加');
+            }
+            
+            // 验证服务器地址格式
+            if(!filter_var($_POST['server_address'], FILTER_VALIDATE_IP) && 
+               !filter_var($_POST['server_address'], FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
+                throw new Exception('服务器地址格式不正确');
+            }
+            
+            // 验证下载地址格式(如果有)
+            if(!empty($_POST['download_url']) && !filter_var($_POST['download_url'], FILTER_VALIDATE_URL)) {
+                throw new Exception('下载地址格式不正确');
+            }
+            
+            // 添加配置
+            $data = [
+                'appcode' => $_POST['appcode'],
+                'app_name' => $_POST['app_name'],
+                'server_address' => $_POST['server_address'],
+                'server_port' => $_POST['server_port'],
+                'download_url' => $_POST['download_url'] ?? '',
+                'special_notes' => $_POST['special_notes'] ?? '',
+                'sort_order' => intval($_POST['sort_order'] ?? 0),
+                'status' => isset($_POST['status']) ? 1 : 0,
+                'create_time' => date('Y-m-d H:i:s'),
+                'update_time' => date('Y-m-d H:i:s')
+            ];
+            
+            $result = $DB->insert('package_apps', $data);
+            if($result !== false) {
+                WriteLog("添加应用配置", "添加应用配置 [{$app['appname']}] {$_POST['app_name']}, " . 
+                        "服务器: {$_POST['server_address']}:{$_POST['server_port']}", 
+                        $subconf['username'], $DB);
+                
+                exit(json_encode(['code' => 1, 'msg' => '添加成功']));
+            } else {
+                throw new Exception('添加失败：数据库操作错误');
+            }
+        } catch (Exception $e) {
+            exit(json_encode(['code' => -1, 'msg' => $e->getMessage()]));
+        }
+        break;
+
+    case 'editpackageapp':  // 改为小写
+        try {
+            // 验证必填参数
+            if(!isset($_POST['id']) || !is_numeric($_POST['id'])) {
+                throw new Exception('参数错误');
+            }
+            
+            $required = ['appcode', 'app_name', 'server_address', 'server_port'];
+            foreach($required as $field) {
+                if(!isset($_POST[$field]) || trim($_POST[$field]) === '') {
+                    throw new Exception('请填写完整信息');
+                }
+            }
+            
+            // 验证端口号
+            if(!is_numeric($_POST['server_port']) || $_POST['server_port'] < 1 || $_POST['server_port'] > 65535) {
+                throw new Exception('端口号必须在1-65535之间');
+            }
+            
+            // 验证权限
+            $app = $DB->selectRow("SELECT * FROM application WHERE appcode = '" . $DB->escape($_POST['appcode']) . 
+                                 "' AND username = '" . $DB->escape($subconf['username']) . "'");
+            if(!$app) {
+                throw new Exception('无权操作此应用');
+            }
+            
+            // 检查应用名称是否重复(排除自身)
+            $check = $DB->selectRow("SELECT id FROM package_apps WHERE appcode = '" . $DB->escape($_POST['appcode']) . 
+                                   "' AND app_name = '" . $DB->escape($_POST['app_name']) . 
+                                   "' AND id != " . intval($_POST['id']));
+            if($check) {
+                throw new Exception('应用名称已存在');
+            }
+            
+            // 验证服务器地址格式
+            if(!filter_var($_POST['server_address'], FILTER_VALIDATE_IP) && 
+               !filter_var($_POST['server_address'], FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
+                throw new Exception('服务器地址格式不正确');
+            }
+            
+            // 验证下载地址格式(如果有)
+            if(!empty($_POST['download_url']) && !filter_var($_POST['download_url'], FILTER_VALIDATE_URL)) {
+                throw new Exception('下载地址格式不正确');
+            }
+            
+            // 更新配置
+            $data = [
+                'app_name' => $_POST['app_name'],
+                'server_address' => $_POST['server_address'],
+                'server_port' => $_POST['server_port'],
+                'download_url' => $_POST['download_url'] ?? '',
+                'special_notes' => $_POST['special_notes'] ?? '',
+                'sort_order' => intval($_POST['sort_order'] ?? 0),
+                'status' => isset($_POST['status']) ? 1 : 0,
+                'update_time' => date('Y-m-d H:i:s')
+            ];
+            
+            $result = $DB->update('package_apps', $data, "id = " . intval($_POST['id']));
+            if($result !== false) {
+                WriteLog("编辑应用配置", "编辑应用配置 [{$app['appname']}] {$_POST['app_name']}, " . 
+                        "服务器: {$_POST['server_address']}:{$_POST['server_port']}", 
+                        $subconf['username'], $DB);
+                exit(json_encode(['code' => 1, 'msg' => '编辑成功']));
+            } else {
+                throw new Exception('编辑失败：数据库操作错误');
+            }
+        } catch (Exception $e) {
+            exit(json_encode(['code' => -1, 'msg' => $e->getMessage()]));
+        }
+        break;
+
+    case 'delpackageapp':
+        try {
+            if(!isset($_POST['id']) || !is_numeric($_POST['id'])) {
+                throw new Exception('参数错误');
+            }
+            
+            $id = intval($_POST['id']);
+            
+            // 验证权限并获取配置信息
+            $config = $DB->selectRow("SELECT pa.*, a.appname 
+                                FROM package_apps pa 
+                                LEFT JOIN application a ON pa.appcode = a.appcode 
+                                WHERE pa.id = $id 
+                                AND a.username = '" . $DB->escape($subconf['username']) . "'");
+            if(!$config) {
+                throw new Exception('无权操作此配置或配置不存在');
+            }
+            
+            // 执行删除
+            $result = $DB->delete('package_apps', "id = $id");
+            if($result !== false) {
+                WriteLog("删除应用配置", "删除应用配置 [{$config['appname']}] {$config['app_name']}", $subconf['username'], $DB);
+                exit(json_encode(['code' => 1, 'msg' => '删除成功']));
+            } else {
+                throw new Exception('删除失败：' . $DB->errMsg);
+            }
+        } catch (Exception $e) {
+            exit(json_encode(['code' => -1, 'msg' => $e->getMessage()]));
+        }
+        break;
+
+    case 'delpackageapps':
+        try {
+            if(!isset($_POST['ids']) || !is_array($_POST['ids'])) {
+                throw new Exception('参数错误');
+            }
+            
+            $ids = array_map('intval', $_POST['ids']);
+            if(empty($ids)) {
+                throw new Exception('请选择要删除的配置');
+            }
+            
+            // 验证权限并获取配置信息
+            $configs = $DB->select("SELECT pa.*, a.appname 
+                              FROM package_apps pa 
+                              LEFT JOIN application a ON pa.appcode = a.appcode 
+                              WHERE pa.id IN (" . implode(',', $ids) . ") 
+                              AND a.username = '" . $DB->escape($subconf['username']) . "'");
+            if(empty($configs)) {
+                throw new Exception('无权操作这些配置或配置不存在');
+            }
+            
+            // 执行批量删除
+            $result = $DB->delete('package_apps', "id IN (" . implode(',', $ids) . ")");
+            if($result !== false) {
+                $details = [];
+                foreach($configs as $config) {
+                    $details[] = "[{$config['appname']}] {$config['app_name']}";
+                }
+                WriteLog("批量删除应用配置", "删除应用配置：" . implode('、', $details), $subconf['username'], $DB);
+                exit(json_encode(['code' => 1, 'msg' => '删除成功']));
+            } else {
+                throw new Exception('删除失败：' . $DB->errMsg);
+            }
+        } catch (Exception $e) {
+            exit(json_encode(['code' => -1, 'msg' => $e->getMessage()]));
+        }
+        break;
+
+    case 'updatepackageappstatus':  // 改为小写
+        try {
+            if(!isset($_POST['id']) || !isset($_POST['status'])) {
+                throw new Exception('参数错误');
+            }
+            
+            $id = intval($_POST['id']);
+            $status = intval($_POST['status']);
+            
+            // 验证权限
+            $config = $DB->selectRow("SELECT pa.*, a.appname 
+                                FROM package_apps pa 
+                                LEFT JOIN application a ON pa.appcode = a.appcode 
+                                WHERE pa.id = $id 
+                                AND a.username = '" . $DB->escape($subconf['username']) . "'");
+            if(!$config) {
+                throw new Exception('无权操作此配置或配置不存在');
+            }
+            
+            $result = $DB->update('package_apps', ['status' => $status], "id = $id");
+            if($result !== false) {
+                WriteLog("修改应用配置状态", "应用配置 [{$config['appname']}] {$config['app_name']} " . 
+                        ($status ? '启用' : '禁用'), $subconf['username'], $DB);
+                exit(json_encode(['code' => 1, 'msg' => '更新成功']));
+            } else {
+                throw new Exception('更新失败：数据库操作错误');
+            }
+        } catch (Exception $e) {
+            exit(json_encode(['code' => -1, 'msg' => $e->getMessage()]));
+        }
+        break;
+
     default:
         exit(json_encode(["code"=>-4,"msg"=>"No Act"]));
         break;
