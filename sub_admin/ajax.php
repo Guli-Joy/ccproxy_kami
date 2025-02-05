@@ -707,12 +707,7 @@ switch ($act) {
         break;
     case "compensatetime":
         try {
-            // 检查登录状态
-            if($islogin != 1) {
-                throw new Exception('请先登录');
-            }
-
-            // 验证参数
+            // 验证和获取必要参数
             if(!isset($_POST['app']) || !isset($_POST['expire_filter']) || 
                !isset($_POST['value']) || !isset($_POST['unit'])) {
                 throw new Exception('缺少必要参数');
@@ -722,74 +717,137 @@ switch ($act) {
             $expire_filter = SecurityFilter::filterInput($_POST['expire_filter']);
             $value = floatval($_POST['value']);
             $unit = SecurityFilter::filterInput($_POST['unit']);
-            
+
+            // 验证参数有效性
+            if(empty($app)) {
+                throw new Exception('请选择应用');
+            }
             if($value <= 0) {
                 throw new Exception('补偿时间必须大于0');
             }
-
-            // 将不同单位转换为天数
-            $days = 0;
-            switch($unit) {
-                case 'days':
-                    $days = $value;
-                    break;
-                case 'hours':
-                    $days = $value / 24;
-                    break;
-                case 'minutes':
-                    $days = $value / (24 * 60);
-                    break;
-                default:
-                    throw new Exception('无效的时间单位');
+            if(!in_array($unit, ['days', 'hours', 'minutes'])) {
+                throw new Exception('无效的时间单位');
             }
 
-            // 获取应用对应的服务器信息
-            $app_info = $DB->selectRow("SELECT * FROM application WHERE appcode='" . $DB->escape($app) . "' AND username='".$DB->escape($subconf['username'])."'");
+            // 获取应用信息
+            $app_info = $DB->selectRow("SELECT * FROM application WHERE appcode='" . 
+                $DB->escape($app) . "' AND username='" . $DB->escape($subconf['username']) . "'");
             if(!$app_info) {
                 throw new Exception('应用不存在或无权限访问');
             }
 
             // 获取服务器信息
-            $server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . $DB->escape($app_info['serverip']) . "'");
+            $server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . 
+                $DB->escape($app_info['serverip']) . "'");
             if(!$server) {
-                throw new Exception('服务器信息不存在，请检查服务器配置');
+                throw new Exception('服务器信息不存在');
             }
 
-            // 获取用户列表并处理补偿
+            // 获取分页参数
+            $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+            $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 20; // 减小批次大小
+
+            // 使用session来防止重复处理
+            $session_key = "compensate_{$app}_{$value}_{$unit}_" . date('Y-m-d');
+            if($offset == 0) {
+                // 如果是新的补偿任务，清除之前的session
+                if(isset($_SESSION[$session_key])) {
+                    unset($_SESSION[$session_key]);
+                }
+            } else {
+                // 检查是否已经处理过这个offset
+                if(isset($_SESSION[$session_key]['processed_offsets']) && 
+                   in_array($offset, $_SESSION[$session_key]['processed_offsets'])) {
+                    // 获取最终的统计数据
+                    $final_stats = [
+                        'code' => 1,  // 改为1，表示成功
+                        'msg' => '补偿处理已完成',
+                        'details' => [
+                            'total' => $_SESSION[$session_key]['total'],
+                            'total_processed' => $_SESSION[$session_key]['total'], // 使用total作为total_processed
+                            'success' => $_SESSION[$session_key]['success'],
+                            'failed' => $_SESSION[$session_key]['failed'],
+                            'skipped' => $_SESSION[$session_key]['skipped'],
+                            'errors' => $_SESSION[$session_key]['errors'],
+                            'value' => $value,
+                            'unit' => $unit,
+                            'has_more' => false  // 表示处理已完成
+                        ]
+                    ];
+                    exit(json_encode($final_stats, JSON_UNESCAPED_UNICODE));
+                }
+            }
+
+            // 获取用户列表
             $users_generator = SerchearchAllServer($app, "", $DB);
             if(!$users_generator) {
-                throw new Exception('获取用户列表失败，请检查应用配置');
+                throw new Exception('获取用户列表失败');
             }
 
-            $success = 0;
-            $failed = 0;
-            $errors = array();
-            $current_time = date('Y-m-d H:i:s');
-            $processed = 0;
-            $skipped = 0;
+            // 初始化或获取统计数据
+            if(!isset($_SESSION[$session_key])) {
+                $_SESSION[$session_key] = [
+                    'total' => 0,
+                    'success' => 0,
+                    'failed' => 0,
+                    'skipped' => 0,
+                    'processed' => 0,
+                    'errors' => array(),
+                    'processed_offsets' => array()
+                ];
 
+                // 计算总用户数
+                foreach($users_generator as $users) {
+                    if(is_array($users)) {
+                        $_SESSION[$session_key]['total'] += count($users);
+                    }
+                }
+            }
+
+            // 重新获取用户列表用于处理
+            $users_generator = SerchearchAllServer($app, "", $DB);
+            $current_time = date('Y-m-d H:i:s');
+            $current_offset = 0;
+            $processed = 0;
+
+            // 处理用户
             foreach($users_generator as $users) {
                 if(!is_array($users) || empty($users)) {
                     continue;
                 }
 
                 foreach($users as $user) {
-                    $processed++;
+                    // 跳过不在当前批次的用户
+                    if($current_offset++ < $offset) {
+                        continue;
+                    }
+
+                    // 达到批次大小时停止
+                    if($processed >= $batch_size) {
+                        break 2;
+                    }
+
                     try {
+                        // 每处理5个用户就刷新一次session，避免session锁定
+                        if($processed > 0 && $processed % 5 == 0) {
+                            session_write_close();
+                            session_start();
+                        }
+
                         if(!isset($user['user']) || !isset($user['disabletime'])) {
-                            $skipped++;
+                            $_SESSION[$session_key]['skipped']++;
                             continue;
                         }
 
                         $is_expired = strtotime($user['disabletime']) < time();
-                        
+
                         // 根据过滤条件跳过不符合的用户
                         if($expire_filter == 'expired' && !$is_expired) {
-                            $skipped++;
+                            $_SESSION[$session_key]['skipped']++;
                             continue;
                         }
                         if($expire_filter == 'unexpired' && $is_expired) {
-                            $skipped++;
+                            $_SESSION[$session_key]['skipped']++;
                             continue;
                         }
 
@@ -814,75 +872,57 @@ switch ($act) {
                         );
 
                         if($update_result && isset($update_result['code']) && $update_result['code'] == "1") {
-                            $success++;
-                            WriteLog("补偿时间", sprintf(
-                                "用户:%s, 补偿%g%s, 原到期时间:%s, 新到期时间:%s", 
-                                $user['user'],
-                                $value,
-                                $unit == 'days' ? '天' : ($unit == 'hours' ? '小时' : '分钟'),
-                                $user['disabletime'],
-                                $new_time
-                            ), $subconf['username'], $DB);
+                            $_SESSION[$session_key]['success']++;
                         } else {
-                            throw new Exception(sprintf(
-                                "更新失败: %s", 
-                                isset($update_result['msg']) ? $update_result['msg'] : '未知错误'
-                            ));
+                            throw new Exception(isset($update_result['msg']) ? $update_result['msg'] : '未知错误');
                         }
+
+                        $processed++;
+                        $_SESSION[$session_key]['processed']++;
+
                     } catch (Exception $e) {
-                        $failed++;
-                        $errors[] = sprintf(
-                            "用户 %s 补偿失败: %s",
-                            $user['user'],
-                            $e->getMessage()
-                        );
+                        $_SESSION[$session_key]['failed']++;
+                        $_SESSION[$session_key]['errors'][] = "用户 {$user['user']} 补偿失败: " . $e->getMessage();
+                        $processed++;
+                        $_SESSION[$session_key]['processed']++;
                     }
                 }
             }
 
-            if($processed == 0) {
-                throw new Exception('未找到任何用户');
-            }
-
-            if($processed == $skipped) {
-                throw new Exception('未找到符合条件的用户');
-            }
+            // 记录已处理的offset
+            $_SESSION[$session_key]['processed_offsets'][] = $offset;
 
             // 返回结果
             $result = [
-                'code' => ($success > 0) ? 1 : -1,
+                'code' => 1,
                 'msg' => sprintf(
-                    "处理完成：共%d个账号，成功补偿%d个，失败%d个，跳过%d个", 
+                    "批次处理完成：处理%d个账号，成功%d个，失败%d个", 
                     $processed,
-                    $success,
-                    $failed,
-                    $skipped
+                    $_SESSION[$session_key]['success'],
+                    $_SESSION[$session_key]['failed']
                 ),
                 'details' => [
-                    'processed' => $processed,
-                    'success' => $success,
-                    'failed' => $failed,
-                    'skipped' => $skipped,
-                    'errors' => $errors
-                ],
-                'value' => $value,
-                'unit' => $unit
+                    'total' => $_SESSION[$session_key]['total'],
+                    'total_processed' => $_SESSION[$session_key]['processed'],
+                    'batch_processed' => $processed,
+                    'success' => $_SESSION[$session_key]['success'],
+                    'failed' => $_SESSION[$session_key]['failed'],
+                    'skipped' => $_SESSION[$session_key]['skipped'],
+                    'has_more' => $_SESSION[$session_key]['processed'] < $_SESSION[$session_key]['total'],
+                    'next_offset' => $offset + $processed,
+                    'errors' => $_SESSION[$session_key]['errors'],
+                    'value' => $value,
+                    'unit' => $unit
+                ]
             ];
 
-            if($failed > 0) {
-                $result['msg'] .= "\n\n失败详情：\n" . implode("\n", $errors);
-            }
-            
             exit(json_encode($result, JSON_UNESCAPED_UNICODE));
 
         } catch (Exception $e) {
+            error_log("[" . date('Y-m-d H:i:s') . "] 补偿时间错误: " . $e->getMessage() . "\n", 3, "../logs/error.log");
             exit(json_encode([
                 'code' => -1,
-                'msg' => "补偿失败: " . $e->getMessage(),
-                'details' => [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]
+                'msg' => "补偿失败: " . $e->getMessage()
             ], JSON_UNESCAPED_UNICODE));
         }
         break;
@@ -1010,12 +1050,7 @@ switch ($act) {
 
     case "compensatetime":
         try {
-            // 检查登录状态
-            if($islogin != 1) {
-                throw new Exception('请先登录');
-            }
-
-            // 验证参数
+            // 验证和获取必要参数
             if(!isset($_POST['app']) || !isset($_POST['expire_filter']) || 
                !isset($_POST['value']) || !isset($_POST['unit'])) {
                 throw new Exception('缺少必要参数');
@@ -1025,74 +1060,137 @@ switch ($act) {
             $expire_filter = SecurityFilter::filterInput($_POST['expire_filter']);
             $value = floatval($_POST['value']);
             $unit = SecurityFilter::filterInput($_POST['unit']);
-            
+
+            // 验证参数有效性
+            if(empty($app)) {
+                throw new Exception('请选择应用');
+            }
             if($value <= 0) {
                 throw new Exception('补偿时间必须大于0');
             }
-
-            // 将不同单位转换为天数
-            $days = 0;
-            switch($unit) {
-                case 'days':
-                    $days = $value;
-                    break;
-                case 'hours':
-                    $days = $value / 24;
-                    break;
-                case 'minutes':
-                    $days = $value / (24 * 60);
-                    break;
-                default:
-                    throw new Exception('无效的时间单位');
+            if(!in_array($unit, ['days', 'hours', 'minutes'])) {
+                throw new Exception('无效的时间单位');
             }
 
-            // 获取应用对应的服务器信息
-            $app_info = $DB->selectRow("SELECT * FROM application WHERE appcode='" . $DB->escape($app) . "' AND username='".$DB->escape($subconf['username'])."'");
+            // 获取应用信息
+            $app_info = $DB->selectRow("SELECT * FROM application WHERE appcode='" . 
+                $DB->escape($app) . "' AND username='" . $DB->escape($subconf['username']) . "'");
             if(!$app_info) {
                 throw new Exception('应用不存在或无权限访问');
             }
 
             // 获取服务器信息
-            $server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . $DB->escape($app_info['serverip']) . "'");
+            $server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . 
+                $DB->escape($app_info['serverip']) . "'");
             if(!$server) {
-                throw new Exception('服务器信息不存在，请检查服务器配置');
+                throw new Exception('服务器信息不存在');
             }
 
-            // 获取用户列表并处理补偿
+            // 获取分页参数
+            $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+            $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 20; // 减小批次大小
+
+            // 使用session来防止重复处理
+            $session_key = "compensate_{$app}_{$value}_{$unit}_" . date('Y-m-d');
+            if($offset == 0) {
+                // 如果是新的补偿任务，清除之前的session
+                if(isset($_SESSION[$session_key])) {
+                    unset($_SESSION[$session_key]);
+                }
+            } else {
+                // 检查是否已经处理过这个offset
+                if(isset($_SESSION[$session_key]['processed_offsets']) && 
+                   in_array($offset, $_SESSION[$session_key]['processed_offsets'])) {
+                    // 获取最终的统计数据
+                    $final_stats = [
+                        'code' => 1,  // 改为1，表示成功
+                        'msg' => '补偿处理已完成',
+                        'details' => [
+                            'total' => $_SESSION[$session_key]['total'],
+                            'total_processed' => $_SESSION[$session_key]['total'], // 使用total作为total_processed
+                            'success' => $_SESSION[$session_key]['success'],
+                            'failed' => $_SESSION[$session_key]['failed'],
+                            'skipped' => $_SESSION[$session_key]['skipped'],
+                            'errors' => $_SESSION[$session_key]['errors'],
+                            'value' => $value,
+                            'unit' => $unit,
+                            'has_more' => false  // 表示处理已完成
+                        ]
+                    ];
+                    exit(json_encode($final_stats, JSON_UNESCAPED_UNICODE));
+                }
+            }
+
+            // 获取用户列表
             $users_generator = SerchearchAllServer($app, "", $DB);
             if(!$users_generator) {
-                throw new Exception('获取用户列表失败，请检查应用配置');
+                throw new Exception('获取用户列表失败');
             }
 
-            $success = 0;
-            $failed = 0;
-            $errors = array();
-            $current_time = date('Y-m-d H:i:s');
-            $processed = 0;
-            $skipped = 0;
+            // 初始化或获取统计数据
+            if(!isset($_SESSION[$session_key])) {
+                $_SESSION[$session_key] = [
+                    'total' => 0,
+                    'success' => 0,
+                    'failed' => 0,
+                    'skipped' => 0,
+                    'processed' => 0,
+                    'errors' => array(),
+                    'processed_offsets' => array()
+                ];
 
+                // 计算总用户数
+                foreach($users_generator as $users) {
+                    if(is_array($users)) {
+                        $_SESSION[$session_key]['total'] += count($users);
+                    }
+                }
+            }
+
+            // 重新获取用户列表用于处理
+            $users_generator = SerchearchAllServer($app, "", $DB);
+            $current_time = date('Y-m-d H:i:s');
+            $current_offset = 0;
+            $processed = 0;
+
+            // 处理用户
             foreach($users_generator as $users) {
                 if(!is_array($users) || empty($users)) {
                     continue;
                 }
 
                 foreach($users as $user) {
-                    $processed++;
+                    // 跳过不在当前批次的用户
+                    if($current_offset++ < $offset) {
+                        continue;
+                    }
+
+                    // 达到批次大小时停止
+                    if($processed >= $batch_size) {
+                        break 2;
+                    }
+
                     try {
+                        // 每处理5个用户就刷新一次session，避免session锁定
+                        if($processed > 0 && $processed % 5 == 0) {
+                            session_write_close();
+                            session_start();
+                        }
+
                         if(!isset($user['user']) || !isset($user['disabletime'])) {
-                            $skipped++;
+                            $_SESSION[$session_key]['skipped']++;
                             continue;
                         }
 
                         $is_expired = strtotime($user['disabletime']) < time();
-                        
+
                         // 根据过滤条件跳过不符合的用户
                         if($expire_filter == 'expired' && !$is_expired) {
-                            $skipped++;
+                            $_SESSION[$session_key]['skipped']++;
                             continue;
                         }
                         if($expire_filter == 'unexpired' && $is_expired) {
-                            $skipped++;
+                            $_SESSION[$session_key]['skipped']++;
                             continue;
                         }
 
@@ -1117,75 +1215,57 @@ switch ($act) {
                         );
 
                         if($update_result && isset($update_result['code']) && $update_result['code'] == "1") {
-                            $success++;
-                            WriteLog("补偿时间", sprintf(
-                                "用户:%s, 补偿%g%s, 原到期时间:%s, 新到期时间:%s", 
-                                $user['user'],
-                                $value,
-                                $unit == 'days' ? '天' : ($unit == 'hours' ? '小时' : '分钟'),
-                                $user['disabletime'],
-                                $new_time
-                            ), $subconf['username'], $DB);
+                            $_SESSION[$session_key]['success']++;
                         } else {
-                            throw new Exception(sprintf(
-                                "更新失败: %s", 
-                                isset($update_result['msg']) ? $update_result['msg'] : '未知错误'
-                            ));
+                            throw new Exception(isset($update_result['msg']) ? $update_result['msg'] : '未知错误');
                         }
+
+                        $processed++;
+                        $_SESSION[$session_key]['processed']++;
+
                     } catch (Exception $e) {
-                        $failed++;
-                        $errors[] = sprintf(
-                            "用户 %s 补偿失败: %s",
-                            $user['user'],
-                            $e->getMessage()
-                        );
+                        $_SESSION[$session_key]['failed']++;
+                        $_SESSION[$session_key]['errors'][] = "用户 {$user['user']} 补偿失败: " . $e->getMessage();
+                        $processed++;
+                        $_SESSION[$session_key]['processed']++;
                     }
                 }
             }
 
-            if($processed == 0) {
-                throw new Exception('未找到任何用户');
-            }
-
-            if($processed == $skipped) {
-                throw new Exception('未找到符合条件的用户');
-            }
+            // 记录已处理的offset
+            $_SESSION[$session_key]['processed_offsets'][] = $offset;
 
             // 返回结果
             $result = [
-                'code' => ($success > 0) ? 1 : -1,
+                'code' => 1,
                 'msg' => sprintf(
-                    "处理完成：共%d个账号，成功补偿%d个，失败%d个，跳过%d个", 
+                    "批次处理完成：处理%d个账号，成功%d个，失败%d个", 
                     $processed,
-                    $success,
-                    $failed,
-                    $skipped
+                    $_SESSION[$session_key]['success'],
+                    $_SESSION[$session_key]['failed']
                 ),
                 'details' => [
-                    'processed' => $processed,
-                    'success' => $success,
-                    'failed' => $failed,
-                    'skipped' => $skipped,
-                    'errors' => $errors
-                ],
-                'value' => $value,
-                'unit' => $unit
+                    'total' => $_SESSION[$session_key]['total'],
+                    'total_processed' => $_SESSION[$session_key]['processed'],
+                    'batch_processed' => $processed,
+                    'success' => $_SESSION[$session_key]['success'],
+                    'failed' => $_SESSION[$session_key]['failed'],
+                    'skipped' => $_SESSION[$session_key]['skipped'],
+                    'has_more' => $_SESSION[$session_key]['processed'] < $_SESSION[$session_key]['total'],
+                    'next_offset' => $offset + $processed,
+                    'errors' => $_SESSION[$session_key]['errors'],
+                    'value' => $value,
+                    'unit' => $unit
+                ]
             ];
 
-            if($failed > 0) {
-                $result['msg'] .= "\n\n失败详情：\n" . implode("\n", $errors);
-            }
-            
             exit(json_encode($result, JSON_UNESCAPED_UNICODE));
 
         } catch (Exception $e) {
+            error_log("[" . date('Y-m-d H:i:s') . "] 补偿时间错误: " . $e->getMessage() . "\n", 3, "../logs/error.log");
             exit(json_encode([
                 'code' => -1,
-                'msg' => "补偿失败: " . $e->getMessage(),
-                'details' => [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]
+                'msg' => "补偿失败: " . $e->getMessage()
             ], JSON_UNESCAPED_UNICODE));
         }
         break;
@@ -2026,6 +2106,52 @@ switch ($act) {
             ], JSON_UNESCAPED_UNICODE));
         }
         break;
+    case 'start_compensate':
+        // 生成任务ID并保存任务信息到session
+        $task_id = uniqid('comp_');
+        $_SESSION['compensate_task'] = [
+            'id' => $task_id,
+            'start_time' => time(),
+            'total' => 0,
+            'processed' => 0,
+            'completed' => false,
+            'params' => [
+                'app' => $_POST['app'],
+                'expire_filter' => $_POST['expire_filter'],
+                'value' => $_POST['value'],
+                'unit' => $_POST['unit']
+            ]
+        ];
+        
+        // 启动异步处理
+        startAsyncCompensate($task_id);
+        
+        exit(json_encode([
+            'code' => 1,
+            'msg' => '任务已启动',
+            'task_id' => $task_id
+        ]));
+        break;
+
+    case 'check_compensate_progress':
+        $task_id = $_POST['task_id'];
+        $task = $_SESSION['compensate_task'] ?? null;
+        
+        if(!$task || $task['id'] !== $task_id) {
+            exit(json_encode([
+                'code' => -1,
+                'msg' => '任务不存在'
+            ]));
+        }
+        
+        exit(json_encode([
+            'code' => 1,
+            'processed' => $task['processed'],
+            'total' => $task['total'],
+            'completed' => $task['completed'],
+            'details' => $task['details'] ?? null
+        ]));
+        break;
     default:
         exit(json_encode(["code"=>-4,"msg"=>"No Act"]));
         break;
@@ -2036,5 +2162,155 @@ switch ($act) {
         'msg' => $e->getMessage()
     ];
     exit(json_encode($response, JSON_UNESCAPED_UNICODE));
+}
+
+/**
+ * 启动异步补偿处理
+ * @param string $task_id 任务ID
+ * @return void
+ */
+function startAsyncCompensate($task_id) {
+    global $DB, $subconf;
+    
+    try {
+        $task = &$_SESSION['compensate_task'];
+        if(!$task || $task['id'] !== $task_id) {
+            throw new Exception('任务不存在');
+        }
+
+        // 获取应用信息
+        $app_info = $DB->selectRow("SELECT * FROM application WHERE appcode='" . 
+            $DB->escape($task['params']['app']) . "' AND username='" . 
+            $DB->escape($subconf['username']) . "'");
+        
+        if(!$app_info) {
+            throw new Exception('应用不存在或无权限访问');
+        }
+
+        // 获取服务器信息
+        $server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . 
+            $DB->escape($app_info['serverip']) . "'");
+        
+        if(!$server) {
+            throw new Exception('服务器信息不存在');
+        }
+
+        // 获取用户列表
+        $users_generator = SerchearchAllServer($task['params']['app'], "", $DB);
+        if(!$users_generator) {
+            throw new Exception('获取用户列表失败');
+        }
+
+        // 初始化统计数据
+        $task['success'] = 0;
+        $task['failed'] = 0;
+        $task['errors'] = array();
+        $task['processed'] = 0;
+        $task['skipped'] = 0;
+        $task['total'] = 0;
+
+        // 计算总用户数
+        foreach($users_generator as $users) {
+            if(is_array($users)) {
+                $task['total'] += count($users);
+            }
+        }
+
+        // 重新获取用户列表用于处理
+        $users_generator = SerchearchAllServer($task['params']['app'], "", $DB);
+        $current_time = date('Y-m-d H:i:s');
+
+        // 处理每个用户
+        foreach($users_generator as $users) {
+            if(!is_array($users) || empty($users)) {
+                continue;
+            }
+
+            foreach($users as $user) {
+                try {
+                    if(!isset($user['user']) || !isset($user['disabletime'])) {
+                        $task['skipped']++;
+                        continue;
+                    }
+
+                    $is_expired = strtotime($user['disabletime']) < time();
+
+                    // 根据过滤条件跳过不符合的用户
+                    if($task['params']['expire_filter'] == 'expired' && !$is_expired) {
+                        $task['skipped']++;
+                        continue;
+                    }
+                    if($task['params']['expire_filter'] == 'unexpired' && $is_expired) {
+                        $task['skipped']++;
+                        continue;
+                    }
+
+                    // 计算新的到期时间
+                    $compensation = "+{$task['params']['value']} {$task['params']['unit']}";
+                    $new_time = $is_expired 
+                        ? date('Y-m-d H:i:s', strtotime($current_time . " " . $compensation))
+                        : date('Y-m-d H:i:s', strtotime($user['disabletime'] . " " . $compensation));
+
+                    // 更新用户时间
+                    $update_result = UserUpdate(
+                        $server["password"],
+                        $server["cport"],
+                        $server["ip"],
+                        $user["user"],
+                        $user["pwd"],
+                        $new_time,
+                        $user["connection"] ?? "-1",
+                        $user["bandwidthup"] ?? "-1",
+                        $user["bandwidthdown"] ?? "-1",
+                        "0"
+                    );
+
+                    if($update_result && isset($update_result['code']) && $update_result['code'] == "1") {
+                        $task['success']++;
+                    } else {
+                        throw new Exception(isset($update_result['msg']) ? $update_result['msg'] : '未知错误');
+                    }
+
+                } catch (Exception $e) {
+                    $task['failed']++;
+                    $task['errors'][] = "用户 {$user['user']} 补偿失败: " . $e->getMessage();
+                }
+
+                $task['processed']++;
+                
+                // 每处理10个用户保存一次session，避免session过大
+                if($task['processed'] % 10 == 0) {
+                    session_write_close();
+                    session_start();
+                }
+            }
+        }
+
+        // 更新任务状态
+        $task['completed'] = true;
+        $task['end_time'] = time();
+        
+        // 记录完成日志
+        error_log(sprintf(
+            "[%s] 补偿任务完成 - ID:%s, 总数:%d, 成功:%d, 失败:%d, 跳过:%d\n",
+            date('Y-m-d H:i:s'),
+            $task_id,
+            $task['total'],
+            $task['success'],
+            $task['failed'],
+            $task['skipped']
+        ), 3, "../logs/error.log");
+
+    } catch (Exception $e) {
+        error_log(sprintf(
+            "[%s] 补偿任务异常 - ID:%s, Error:%s\n",
+            date('Y-m-d H:i:s'),
+            $task_id,
+            $e->getMessage()
+        ), 3, "../logs/error.log");
+        
+        $task['completed'] = true;
+        $task['error'] = $e->getMessage();
+    }
 }
 ?>

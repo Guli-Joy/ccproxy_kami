@@ -359,101 +359,88 @@ include("foot.php");
 				}
 			});
 
-			// 补偿表单提交
+			// 修改补偿时间的处理代码
 			form.on('submit(compensateSubmit)', function(data) {
-				var loadIndex = layer.load(1, {
-					shade: [0.1,'#fff']
+				// 创建进度提示层
+				var progressIndex = layer.open({
+					type: 1,
+					title: '补偿进度',
+					closeBtn: 0,
+					area: ['500px', '200px'],
+					content: `<div style="padding: 20px;">
+						<div class="layui-progress layui-progress-big" lay-showpercent="true" lay-filter="compensateProgress">
+							<div class="layui-progress-bar" lay-percent="0%"></div>
+						</div>
+						<div id="compensateStatus" style="margin-top: 15px;text-align: center;">
+							正在处理中...
+						</div>
+					</div>`
 				});
 
-				// 发送补偿请求
-				$.ajax({
-					url: 'ajax.php',
-					type: 'POST',
-					dataType: 'json',
-					data: {
-						act: 'compensatetime',
-						app: data.field.compensate_app,
-						expire_filter: data.field.compensate_filter,
-						value: data.field.compensate_value,
-						unit: data.field.compensate_unit,
-						batch_size: 100,
-						start: 0
-					},
-					success: function(res) {
-						if(res.code == 1) {
-							if(res.has_more) {
-								processBatch(data.field, res.processed, loadIndex);
+				// 分批处理函数
+				function processBatch(formData, offset) {
+					$.ajax({
+						url: 'ajax.php',
+						type: 'POST',
+						dataType: 'json',
+						timeout: 60000, // 增加超时时间到60秒
+						data: {
+							act: 'compensatetime',
+							app: formData.compensate_app,
+							expire_filter: formData.compensate_filter,
+							value: formData.compensate_value,
+							unit: formData.compensate_unit,
+							offset: offset,
+							batch_size: 20 // 减小批次大小
+						},
+						success: function(res) {
+							if(res.code == 1) {
+								// 更新进度条
+								var percent = Math.round((res.details.total_processed / res.details.total) * 100);
+								element.progress('compensateProgress', percent + '%');
+								$('#compensateStatus').html('已处理: ' + res.details.total_processed + '/' + res.details.total);
+								
+								// 检查是否还有更多数据需要处理
+								if(res.details.has_more && res.details.total_processed < res.details.total) {
+									// 继续处理下一批，增加延迟
+									setTimeout(function() {
+										processBatch(formData, res.details.next_offset);
+									}, 500); // 增加延迟到500ms
+								} else {
+									// 处理完成，关闭进度层并显示结果
+									layer.close(progressIndex);
+									showCompletionMessage(res);
+								}
 							} else {
-								layer.close(loadIndex);
-								showCompletionMessage(res);
+								// 如果是已处理过的错误，直接关闭并显示完成信息
+								if(res.msg && res.msg.indexOf('该批次已经处理过') !== -1) {
+									layer.close(progressIndex);
+									showCompletionMessage(res);
+								} else {
+									// 其他错误则重试当前批次
+									console.error('处理出错，将在3秒后重试:', res.msg);
+									setTimeout(function() {
+										processBatch(formData, offset);
+									}, 3000);
+								}
 							}
-						} else {
-							layer.close(loadIndex);
-							layer.msg(res.msg || '操作失败', {
-								icon: 2,
-								time: 2000
-							});
+						},
+						error: function(xhr, status, error) {
+							// 请求失败时重试
+							console.error('请求失败，将在3秒后重试:', status, error);
+							setTimeout(function() {
+								processBatch(formData, offset);
+							}, 3000);
 						}
-					},
-					error: function(xhr, status, error) {
-						layer.close(loadIndex);
-						layer.msg('请求失败: ' + error, {
-							icon: 2,
-							time: 2000
-						});
-					}
-				});
+					});
+				}
+
+				// 开始第一批处理
+				processBatch(data.field, 0);
 				return false;
 			});
 
-			// 添加分批处理函数
-			function processBatch(formData, processedCount, loadIndex) {
-				$.ajax({
-					url: 'ajax.php',
-					type: 'POST',
-					dataType: 'json',
-					data: {
-						act: 'compensatetime',
-						app: formData.compensate_app,
-						expire_filter: formData.compensate_filter,
-						value: formData.compensate_value,
-						unit: formData.compensate_unit,
-						batch_size: 100,
-						start: processedCount
-					},
-					success: function(res) {
-						if(res.code == 1) {
-							// 更新进度提示
-							layer.msg('正在处理: ' + res.processed + '/' + res.total, {
-								icon: 16,
-								time: 1000
-							});
-							
-							if(res.has_more) {
-								processBatch(formData, res.processed, loadIndex);
-							} else {
-								layer.close(loadIndex);
-								showCompletionMessage(res);
-							}
-						} else {
-							layer.close(loadIndex);
-							layer.msg(res.msg || '操作失败', {
-								icon: 2,
-								time: 2000
-							});
-						}
-					},
-					error: function(xhr, status, error) {
-						layer.close(loadIndex);
-						layer.msg('请求失败: ' + error, {
-							icon: 2,
-							time: 2000
-						});
-					}
-				});
-			}
-
-			// 添加完成消息显示函数
+			// 修改完成消息显示函数
 			function showCompletionMessage(res) {
 				var resultMsg = res.msg;
 				if(res.details) {
@@ -461,14 +448,18 @@ include("foot.php");
 						'days': '天',
 						'hours': '小时', 
 						'minutes': '分钟'
-					}[res.unit] || '天';
+					}[res.details.unit] || '天';
 					
-					resultMsg += '<br>处理详情：<br>';
-					resultMsg += '- 补偿时间：' + res.value + unitText + '<br>';
+					resultMsg = '补偿处理已完成<br><br>处理详情：<br>';
+					resultMsg += '- 补偿时间：' + res.details.value + unitText + '<br>';
+					resultMsg += '- 总处理：' + res.details.total_processed + '/' + res.details.total + '个<br>';
 					resultMsg += '- 成功：' + res.details.success + '个<br>';
 					resultMsg += '- 失败：' + res.details.failed + '个<br>';
+					if(res.details.skipped > 0) {
+						resultMsg += '- 跳过：' + res.details.skipped + '个<br>';
+					}
 					if(res.details.errors && res.details.errors.length > 0) {
-						resultMsg += '- 失败账号：<br>' + res.details.errors.join('<br>');
+						resultMsg += '<br>失败账号：<br>' + res.details.errors.join('<br>');
 					}
 				}
 				
@@ -482,7 +473,6 @@ include("foot.php");
 					yes: function(index) {
 						layer.close(index);
 						table.reload('server_list');
-						layer.closeAll();
 					}
 				});
 			}

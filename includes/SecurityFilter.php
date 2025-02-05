@@ -27,9 +27,28 @@ class SecurityFilter {
             'username',     
             'newuser',      
             'olduser',
-            'account',      // 添加订单账号
-            'password',     // 添加订单密码
-            'pwd'          // 添加密码字段
+            'account',      
+            'password',     
+            'pwd',          
+            'qianzhui',     // 卡密前缀
+            // 网站设置相关字段
+            'hostname',     // 网站标题
+            'siteurl',      // 主域名
+            'domain_list',  // 多域名列表
+            'img',          // LOGO链接
+            'kf',           // 客服链接
+            'pan',          // 网盘链接
+            'dayimg',       // 日间背景
+            'nightimg',     // 夜间背景
+            'wzgg',         // 网站公告
+            'user_key',     // 用户密钥
+            'logo',         // LOGO设置
+            // 支付配置相关字段
+            'api_url',      // 支付接口地址
+            'merchant_id',  // 商户ID
+            'merchant_key', // 商户密钥
+            'notify_url',   // 通知回调地址
+            'return_url'    // 支付返回地址
         ];
 
         // 检查是否是支付相关请求
