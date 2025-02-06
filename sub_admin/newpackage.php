@@ -105,10 +105,14 @@ if (!($islogin == 1)) {
                 </div>
             </div>
             <div class="layui-form-item">
-                <label class="layui-form-label layui-form-required">天数</label>
-                <div class="layui-input-block">
-                    <input type="number" name="days" required lay-verify="required|number|days" placeholder="请输入天数" autocomplete="off" class="layui-input">
-                    <span class="unit">天</span>
+                <label class="layui-form-label layui-form-required">时长</label>
+                <div class="layui-input-block" style="display:flex;gap:10px">
+                    <input type="number" name="duration" required lay-verify="required|number|duration" placeholder="请输入时长" autocomplete="off" class="layui-input" style="width:calc(100% - 120px)">
+                    <select name="duration_unit" lay-verify="required" style="width:110px">
+                        <option value="minute">分钟</option>
+                        <option value="hour">小时</option>
+                        <option value="day">天</option>
+                    </select>
                 </div>
             </div>
             <div class="layui-form-item">
@@ -144,12 +148,25 @@ if (!($islogin == 1)) {
 
         // 自定义验证规则
         form.verify({
-            days: function(value) {
+            duration: function(value) {
                 if(value <= 0) {
-                    return '天数必须大于0';
+                    return '时长必须大于0';
                 }
-                if(value > 3650) {
-                    return '天数不能超过3650天';
+                var unit = $('select[name="duration_unit"]').val();
+                var maxValue;
+                switch(unit) {
+                    case 'minute':
+                        maxValue = 525600; // 365天的分钟数
+                        break;
+                    case 'hour':
+                        maxValue = 8760; // 365天的小时数
+                        break;
+                    case 'day':
+                        maxValue = 365; // 最大天数
+                        break;
+                }
+                if(value > maxValue) {
+                    return '时长不能超过365天';
                 }
             },
             price: function(value) {
@@ -165,6 +182,22 @@ if (!($islogin == 1)) {
         form.on('submit(formDemo)', function(data) {
             var loadIndex = layer.load(2, {shade: [0.3, '#fff']});
             data.field.status = data.field.status === undefined ? 1 : parseInt(data.field.status);
+            
+            // 转换时长为天数(精确到6位小数)
+            var duration = parseFloat(data.field.duration);
+            var unit = data.field.duration_unit;
+            switch(unit) {
+                case 'minute':
+                    data.field.days = (duration / (24 * 60)).toFixed(6); // 转换分钟到天
+                    break;
+                case 'hour':
+                    data.field.days = (duration / 24).toFixed(6); // 转换小时到天
+                    break;
+                case 'day':
+                    data.field.days = duration.toFixed(6);
+                    break;
+            }
+
             $.ajax({
                 url: 'ajax.php?act=addpackage',
                 type: 'POST',

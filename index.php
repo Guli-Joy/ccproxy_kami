@@ -416,8 +416,40 @@ try {
                             if (res.code == "1") {
                                 for (var key in res.msg) {
                                     var package = res.msg[key];
+                                    
+                                    // 转换天数为更友好的显示格式
+                                    var days = parseFloat(package.duration);
+                                    var totalMinutes = Math.round(days * 24 * 60); // 转换为分钟并四舍五入
+                                    var durationDisplay = '';
+                                    
+                                    if(totalMinutes >= 24 * 60) { // 1天或以上
+                                        var remainingDays = Math.floor(totalMinutes / (24 * 60));
+                                        totalMinutes %= (24 * 60);
+                                        durationDisplay += remainingDays + '天';
+                                        
+                                        if(totalMinutes >= 60) { // 还有小时
+                                            var hours = Math.floor(totalMinutes / 60);
+                                            totalMinutes %= 60;
+                                            durationDisplay += hours + '小时';
+                                        }
+                                        
+                                        if(totalMinutes > 0) { // 还有分钟
+                                            durationDisplay += totalMinutes + '分钟';
+                                        }
+                                    } else if(totalMinutes >= 60) { // 1小时到24小时
+                                        var hours = Math.floor(totalMinutes / 60);
+                                        totalMinutes %= 60;
+                                        durationDisplay = hours + '小时';
+                                        
+                                        if(totalMinutes > 0) { // 还有分钟
+                                            durationDisplay += totalMinutes + '分钟';
+                                        }
+                                    } else { // 不足1小时
+                                        durationDisplay = totalMinutes + '分钟';
+                                    }
+                                    
                                     var item = '<option value="' + package.id + '">' +
-                                        package.name + ' - ' + package.price + '元/' + package.duration + '天' +
+                                        package.name + ' - ' + package.price + '元/' + durationDisplay +
                                         '</option>';
                                     $("#online-pay-package").append(item);
                                 }

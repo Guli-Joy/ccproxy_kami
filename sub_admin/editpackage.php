@@ -98,10 +98,32 @@ if (!$row) exit("<script language='javascript'>alert('套餐不存在！');windo
                 </div>
             </div>
             <div class="layui-form-item">
-                <label class="layui-form-label layui-form-required">天数</label>
-                <div class="layui-input-block">
-                    <input type="number" name="days" required lay-verify="required|number|days" placeholder="请输入天数" autocomplete="off" class="layui-input" value="<?php echo $row['days']?>">
-                    <span class="unit">天</span>
+                <label class="layui-form-label layui-form-required">时长</label>
+                <div class="layui-input-block" style="display:flex;gap:10px">
+                    <?php
+                    // 将天数转换为最适合的单位
+                    $days = floatval($row['days']);
+                    $totalMinutes = round($days * 24 * 60);
+                    
+                    if($totalMinutes >= 24 * 60) { // 1天或以上
+                        $duration = floor($days);
+                        $defaultUnit = 'day';
+                    } elseif($totalMinutes >= 60) { // 1小时或以上
+                        $duration = floor($totalMinutes / 60);
+                        $defaultUnit = 'hour';
+                    } else { // 不足1小时
+                        $duration = $totalMinutes;
+                        $defaultUnit = 'minute';
+                    }
+                    ?>
+                    <input type="number" name="duration" required lay-verify="required|number|duration" 
+                           placeholder="请输入时长" autocomplete="off" class="layui-input" 
+                           style="width:calc(100% - 120px)" value="<?php echo $duration?>">
+                    <select name="duration_unit" lay-verify="required" style="width:110px">
+                        <option value="minute" <?php echo $defaultUnit=='minute'?'selected':''?>>分钟</option>
+                        <option value="hour" <?php echo $defaultUnit=='hour'?'selected':''?>>小时</option>
+                        <option value="day" <?php echo $defaultUnit=='day'?'selected':''?>>天</option>
+                    </select>
                 </div>
             </div>
             <div class="layui-form-item">
@@ -137,12 +159,25 @@ if (!$row) exit("<script language='javascript'>alert('套餐不存在！');windo
 
         // 自定义验证规则
         form.verify({
-            days: function(value) {
+            duration: function(value) {
                 if(value <= 0) {
-                    return '天数必须大于0';
+                    return '时长必须大于0';
                 }
-                if(value > 3650) {
-                    return '天数不能超过3650天';
+                var unit = $('select[name="duration_unit"]').val();
+                var maxValue;
+                switch(unit) {
+                    case 'minute':
+                        maxValue = 525600; // 365天的分钟数
+                        break;
+                    case 'hour':
+                        maxValue = 8760; // 365天的小时数
+                        break;
+                    case 'day':
+                        maxValue = 365; // 最大天数
+                        break;
+                }
+                if(value > maxValue) {
+                    return '时长不能超过365天';
                 }
             },
             price: function(value) {
@@ -157,6 +192,22 @@ if (!$row) exit("<script language='javascript'>alert('套餐不存在！');windo
 
         form.on('submit(formDemo)', function(data) {
             var loadIndex = layer.load(2, {shade: [0.3, '#fff']});
+            
+            // 转换时长为天数(精确到6位小数)
+            var duration = parseFloat(data.field.duration);
+            var unit = data.field.duration_unit;
+            switch(unit) {
+                case 'minute':
+                    data.field.days = (duration / (24 * 60)).toFixed(6); // 转换分钟到天
+                    break;
+                case 'hour':
+                    data.field.days = (duration / 24).toFixed(6); // 转换小时到天
+                    break;
+                case 'day':
+                    data.field.days = duration.toFixed(6);
+                    break;
+            }
+
             $.ajax({
                 url: 'ajax.php?act=editpackage',
                 type: 'POST',

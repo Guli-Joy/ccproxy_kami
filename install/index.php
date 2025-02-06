@@ -176,8 +176,11 @@ function deldir($path = '../install')
                     <div class="col-xl-6" style="margin:auto">
                         <div class="card">
                             <?php if ($type == "installok") {
+                                // 获取安装方式
+                                $install_type = isset($_GET['mode']) ? $_GET['mode'] : 'fresh';
+                                
                                 // 生成安装锁
-                                if (!file_exists("./install.lock") && !file_exists("./install.lock")) {
+                                if (!file_exists("./install.lock")) {
                                     create_install_lock();
                                     // 设置安装成功session
                                     $_SESSION['install_success'] = true;
@@ -186,8 +189,9 @@ function deldir($path = '../install')
                                 <div class="card-body">
                                     <div class="text-center">
                                         <h2 class="mt-0"><i class="mdi mdi-check-all text-success"></i></h2>
-                                        <h3 class="mt-0">安装成功</h3>
-                                        <p class="w-75 mb-2 mt-2 mx-auto">恭喜您，系统已经安装完成！</p>
+                                        <?php if($install_type == 'fresh'): ?>
+                                        <h3 class="mt-0">恭喜您，系统已经安装完成！</h3>
+                                        <p class="w-75 mb-2 mt-2 mx-auto">系统已全新安装成功！</p>
                                         <div class="mb-3">
                                             <div class="alert alert-success" role="alert">
                                                 <h4 class="alert-heading">登录信息</h4>
@@ -197,6 +201,31 @@ function deldir($path = '../install')
                                                 <p class="mb-0">请及时修改默认密码以确保安全！</p>
                                             </div>
                                         </div>
+                                        <?php elseif($install_type == 'update'): ?>
+                                        <h3 class="mt-0">系统更新完成！</h3>
+                                        <p class="w-75 mb-2 mt-2 mx-auto">数据库结构已更新，原有数据已保留。</p>
+                                        <div class="mb-3">
+                                            <div class="alert alert-info" role="alert">
+                                                <h4 class="alert-heading">更新提示</h4>
+                                                <p>数据库结构已更新到最新版本</p>
+                                                <p>原有的数据和配置已保留</p>
+                                                <hr>
+                                                <p class="mb-0">您可以继续使用原有的账号密码登录系统</p>
+                                            </div>
+                                        </div>
+                                        <?php elseif($install_type == 'config'): ?>
+                                        <h3 class="mt-0">配置更新完成！</h3>
+                                        <p class="w-75 mb-2 mt-2 mx-auto">数据库配置已更新。</p>
+                                        <div class="mb-3">
+                                            <div class="alert alert-info" role="alert">
+                                                <h4 class="alert-heading">配置提示</h4>
+                                                <p>数据库连接配置已更新</p>
+                                                <p>数据库内容保持不变</p>
+                                                <hr>
+                                                <p class="mb-0">您可以继续使用原有的账号密码登录系统</p>
+                                            </div>
+                                        </div>
+                                        <?php endif; ?>
                                         <div class="mb-3">
                                             <a href="../sub_admin/" target="_blank" class="btn btn-primary mr-2">
                                                 <i class="mdi mdi-account-key"></i> 打开后台管理
@@ -542,127 +571,172 @@ function deldir($path = '../install')
                         success: function(res) {
                             layer.close(index);
                             if (res.code == -2) {
-                                layer.confirm('数据库已存在相关表,是否清空重新安装?', {
-                                    btn: ['确定', '跳过', '取消'],
+                                layer.confirm('数据库已存在相关表,请选择操作方式:', {
+                                    btn: ['清空重装', '保留数据更新结构', '仅更新配置', '取消'],
                                     icon: 3,
-                                    title: "提示"
-                                }, function() {
-                                    // 确认清空数据库
-                                    var clearIndex = layer.msg('正在清空数据库...', {
-                                        icon: 16,
-                                        time: 999999
-                                    });
-                                    $.ajax({
-                                        url: 'ajax.php?act=clear_db',
-                                        type: 'POST',
-                                        data: data.field,
-                                        dataType: 'json',
-                                        success: function(res) {
-                                            layer.close(clearIndex);
-                                            if (res.code == 1) {
-                                                // 数据库清空成功，继续安装
-                                                layer.msg(res.msg, {icon: 1});
-                                                setTimeout(function() {
-                                                    // 重新提交安装
-                                                    data.field.state = 1; // 标记为全新安装
-                                                    var installIndex = layer.msg('正在安装中,请稍后...', {
-                                                        icon: 16,
-                                                        time: 999999
-                                                    });
-                                                    $.ajax({
-                                                        url: 'ajax.php?act=1',
-                                                        type: 'POST',
-                                                        data: data.field,
-                                                        dataType: 'json',
-                                                        success: function(res) {
-                                                            layer.close(installIndex);
-                                                            if (res.code == 1) {
-                                                                var successMsg = '安装成功！';
-                                                                if (res.sql_count) {
-                                                                    successMsg += '<br>成功执行 ' + res.sql_count + ' 条SQL语句';
-                                                                }
-                                                                successMsg += '<br>3秒后自动跳转...';
-                                                                
-                                                                layer.msg(successMsg, {
-                                                                    icon: 1,
-                                                                    time: 3000,
-                                                                    shade: 0.3,
-                                                                    shadeClose: false,
-                                                                    end: function() {
-                                                                        window.location.href = 'index.php?type=installok';
+                                    title: "提示",
+                                    yes: function(index) { // 清空重装
+                                        // 确认清空数据库
+                                        var clearIndex = layer.msg('正在清空数据库...', {
+                                            icon: 16,
+                                            time: 999999
+                                        });
+                                        $.ajax({
+                                            url: 'ajax.php?act=clear_db',
+                                            type: 'POST',
+                                            data: data.field,
+                                            dataType: 'json',
+                                            success: function(res) {
+                                                layer.close(clearIndex);
+                                                if (res.code == 1) {
+                                                    // 数据库清空成功，继续安装
+                                                    layer.msg(res.msg, {icon: 1});
+                                                    setTimeout(function() {
+                                                        // 重新提交安装
+                                                        data.field.state = 1; // 标记为全新安装
+                                                        var installIndex = layer.msg('正在安装中,请稍后...', {
+                                                            icon: 16,
+                                                            time: 999999
+                                                        });
+                                                        $.ajax({
+                                                            url: 'ajax.php?act=1',
+                                                            type: 'POST',
+                                                            data: data.field,
+                                                            dataType: 'json',
+                                                            success: function(res) {
+                                                                layer.close(installIndex);
+                                                                if (res.code == 1) {
+                                                                    var successMsg = '安装成功！';
+                                                                    if (res.sql_count) {
+                                                                        successMsg += '<br>成功执行 ' + res.sql_count + ' 条SQL语句';
                                                                     }
-                                                                });
-                                                            } else {
-                                                                layer.alert(res.msg, {
+                                                                    successMsg += '<br>3秒后自动跳转...';
+                                                                    
+                                                                    layer.msg(successMsg, {
+                                                                        icon: 1,
+                                                                        time: 3000,
+                                                                        shade: 0.3,
+                                                                        shadeClose: false,
+                                                                        end: function() {
+                                                                            window.location.href = 'index.php?type=installok&mode=fresh';
+                                                                        }
+                                                                    });
+                                                                } else {
+                                                                    layer.alert(res.msg, {
+                                                                        icon: 2,
+                                                                        title: '安装失败'
+                                                                    });
+                                                                }
+                                                            },
+                                                            error: function(xhr) {
+                                                                layer.close(installIndex);
+                                                                layer.alert('安装请求失败！', {
                                                                     icon: 2,
-                                                                    title: '安装失败'
+                                                                    title: '错误'
                                                                 });
                                                             }
-                                                        },
-                                                        error: function(xhr) {
-                                                            layer.close(installIndex);
-                                                            layer.alert('安装请求失败！', {
-                                                                icon: 2,
-                                                                title: '错误'
-                                                            });
+                                                        });
+                                                    }, 1000);
+                                                } else {
+                                                    layer.alert(res.msg, {
+                                                        icon: 2,
+                                                        title: '清空失败'
+                                                    });
+                                                }
+                                            },
+                                            error: function(xhr) {
+                                                layer.close(clearIndex);
+                                                layer.alert('清空数据库请求失败！', {
+                                                    icon: 2,
+                                                    title: '错误'
+                                                });
+                                            }
+                                        });
+                                    },
+                                    btn2: function(index) { // 保留数据更新结构
+                                        // 保留数据更新结构
+                                        var updateIndex = layer.msg('正在更新数据库结构...', {
+                                            icon: 16,
+                                            time: 999999
+                                        });
+                                        $.ajax({
+                                            url: 'ajax.php?act=update_structure',
+                                            type: 'POST',
+                                            data: data.field,
+                                            dataType: 'json',
+                                            success: function(res) {
+                                                layer.close(updateIndex);
+                                                if (res.code == 1) {
+                                                    layer.msg(res.msg + '<br>3秒后自动跳转...', {
+                                                        icon: 1,
+                                                        time: 3000,
+                                                        shade: 0.3,
+                                                        shadeClose: false,
+                                                        end: function() {
+                                                            window.location.href = 'index.php?type=installok&mode=update';
                                                         }
                                                     });
-                                                }, 1000);
-                                            } else {
-                                                layer.alert(res.msg, {
+                                                } else {
+                                                    layer.alert(res.msg, {
+                                                        icon: 2,
+                                                        title: '更新失败'
+                                                    });
+                                                }
+                                            },
+                                            error: function(xhr) {
+                                                layer.close(updateIndex);
+                                                layer.alert('更新请求失败！', {
                                                     icon: 2,
-                                                    title: '清空失败'
+                                                    title: '错误'
                                                 });
                                             }
-                                        },
-                                        error: function(xhr) {
-                                            layer.close(clearIndex);
-                                            layer.alert('清空数据库请求失败！', {
-                                                icon: 2,
-                                                title: '错误'
-                                            });
-                                        }
-                                    });
-                                }, function() {
-                                    // 跳过时也更新数据库配置
-                                    var skipIndex = layer.msg('正在更新数据库配置...', {
-                                        icon: 16,
-                                        time: 999999
-                                    });
-                                    $.ajax({
-                                        url: 'ajax.php?act=update_config',
-                                        type: 'POST', 
-                                        data: data.field,
-                                        dataType: 'json',
-                                        success: function(res) {
-                                            layer.close(skipIndex);
-                                            if(res.code == 1) {
-                                                layer.msg('配置更新成功!<br>3秒后自动跳转...', {
-                                                    icon: 1,
-                                                    time: 3000,
-                                                    shade: 0.3,
-                                                    shadeClose: false,
-                                                    end: function() {
-                                                        window.location.href = 'index.php?type=installok';
-                                                    }
-                                                });
-                                            } else {
-                                                layer.alert(res.msg, {
+                                        });
+                                        return false;
+                                    },
+                                    btn3: function(index) { // 仅更新配置
+                                        layer.close(index); // 关闭确认框
+                                        var configIndex = layer.msg('正在更新数据库配置...', {
+                                            icon: 16,
+                                            time: 999999
+                                        });
+                                        $.ajax({
+                                            url: 'ajax.php?act=update_config',
+                                            type: 'POST',
+                                            data: data.field,
+                                            dataType: 'json',
+                                            success: function(res) {
+                                                layer.close(configIndex);
+                                                if(res.code == 1) {
+                                                    layer.msg('配置更新成功!<br>3秒后自动跳转...', {
+                                                        icon: 1,
+                                                        time: 3000,
+                                                        shade: 0.3,
+                                                        shadeClose: false,
+                                                        end: function() {
+                                                            window.location.href = 'index.php?type=installok&mode=config';
+                                                        }
+                                                    });
+                                                } else {
+                                                    layer.alert(res.msg, {
+                                                        icon: 2,
+                                                        title: '配置更新失败'
+                                                    });
+                                                }
+                                            },
+                                            error: function(xhr) {
+                                                layer.close(configIndex);
+                                                layer.alert('配置更新请求失败！', {
                                                     icon: 2,
-                                                    title: '配置更新失败'
+                                                    title: '错误'
                                                 });
                                             }
-                                        },
-                                        error: function(xhr) {
-                                            layer.close(skipIndex);
-                                            layer.alert('配置更新请求失败！', {
-                                                icon: 2,
-                                                title: '错误'
-                                            });
-                                        }
-                                    });
-                                }, function() {
-                                    // 取消操作，什么都不做
+                                        });
+                                        return false; // 阻止关闭
+                                    },
+                                    btn4: function(index) { // 取消
+                                        layer.close(index);
+                                        return false;
+                                    }
                                 });
                             } else if (res.code == 1) {
                                 layer.msg('安装成功！<br>成功执行 ' + res.sql_count + ' 条SQL语句<br>3秒后自动跳转...', {
@@ -671,7 +745,7 @@ function deldir($path = '../install')
                                     shade: 0.3,
                                     shadeClose: false,
                                     end: function() {
-                                        window.location.href = 'index.php?type=installok';
+                                        window.location.href = 'index.php?type=installok&mode=fresh';
                                     }
                                 });
                             } else {

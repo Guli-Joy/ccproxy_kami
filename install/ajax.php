@@ -441,33 +441,193 @@ switch ($act) {
         die(json_encode(['code' => 1, 'msg' => '文件检查通过']));
         break;
     case 'update_config':
-        $host=isset($_POST['host'])?$_POST['host']:null;
-        $port=isset($_POST['port'])?$_POST['port']:null;
-        $user=isset($_POST['user'])?$_POST['user']:null;
-        $pwd=isset($_POST['pwd'])?$_POST['pwd']:null;
-        $dbname=isset($_POST['dbname'])?$_POST['dbname']:null;
-        
-        if($host==null || $port==null || $user==null || $pwd==null || $dbname==null){
-            exit('{"code":-1,"msg":"请填写完整！"}');
+        if (empty($_POST['host']) || empty($_POST['port']) || empty($_POST['user']) || empty($_POST['pwd']) || empty($_POST['dbname'])) {
+            die(json_encode(['code' => -1, 'msg' => '请确保数据库配置不为空！']));
         }
         
         try {
             $config_file = '../config.php';
-            $config_content = "<?php
-/*数据库配置*/
-\$dbconfig=array(
-    'host' => '{$host}', //数据库服务器
-    'port' => {$port}, //数据库端口
-    'user' => '{$user}', //数据库用户名
-    'pwd' => '{$pwd}', //数据库密码
-    'dbname' => '{$dbname}', //数据库名
-);
-?>";
-            if(!file_put_contents($config_file, $config_content)){
-                exit('{"code":-1,"msg":"配置文件写入失败,请检查文件权限！"}');
+            $config_content = "<?php\n" .
+                "/*数据库配置*/\n" .
+                "\$dbconfig=array(\n" .
+                "    'host' => '" . addslashes($_POST['host']) . "', //数据库服务器\n" .
+                "    'port' => " . intval($_POST['port']) . ", //数据库端口\n" .
+                "    'user' => '" . addslashes($_POST['user']) . "', //数据库用户名\n" .
+                "    'pwd' => '" . addslashes($_POST['pwd']) . "', //数据库密码\n" .
+                "    'dbname' => '" . addslashes($_POST['dbname']) . "', //数据库名\n" .
+                ");\n?>";
+
+            // 检查文件权限
+            if (!is_writable($config_file) && file_exists($config_file)) {
+                die(json_encode(['code' => -1, 'msg' => '配置文件没有写入权限！']));
             }
-            exit('{"code":1,"msg":"配置更新成功！"}');
+
+            if (file_put_contents($config_file, $config_content)) {
+                die(json_encode(['code' => 1, 'msg' => '配置更新成功！']));
+            } else {
+                die(json_encode(['code' => -1, 'msg' => '配置文件写入失败！']));
+            }
         } catch (Exception $e) {
-            exit('{"code":-1,"msg":"配置更新失败:'.$e->getMessage().'"}');
+            die(json_encode(['code' => -1, 'msg' => '配置更新失败：' . $e->getMessage()]));
         }
+        break;
+    case 'update_structure':
+        if (empty($_QET['host']) || empty($_QET['port']) || empty($_QET['user']) || empty($_QET['pwd']) || empty($_QET['dbname'])) {
+            die(json_encode(['code' => -1, 'msg' => '请确保数据库配置不为空！']));
+        }
+
+        // 连接数据库
+        if (!$con = DB::connect($_QET['host'], $_QET['user'], $_QET['pwd'], $_QET['dbname'], $_QET['port'])) {
+            die(json_encode(['code' => -1, 'msg' => '连接数据库失败：' . DB::connect_error()]));
+        }
+
+        try {
+            // 读取SQL文件
+            $sql_file = './ccpy.sql';
+            $sql_content = file_get_contents($sql_file);
+            if ($sql_content === false) {
+                die(json_encode(['code' => -1, 'msg' => 'SQL文件读取失败']));
+            }
+
+            // 解析SQL文件中的表结构
+            $new_tables = [];
+            
+            // 将SQL语句按分号分割
+            $sql_statements = explode(';', $sql_content);
+            
+            foreach ($sql_statements as $statement) {
+                $statement = trim($statement);
+                
+                // 只处理CREATE TABLE语句
+                if (stripos($statement, 'CREATE TABLE') === false) {
+                    continue;
+                }
+                
+                // 提取完整的CREATE TABLE语句
+                if (preg_match('/CREATE TABLE\s+`([^`]+)`\s*\((.*)\)([^;]*)/is', $statement, $matches)) {
+                    $table_name = $matches[1];
+                    $structure = $matches[2];
+                    $table_options = $matches[3];
+                    
+                    // 清理结构中的注释和多余空白
+                    $structure = preg_replace('/\/\*.*?\*\//s', '', $structure);
+                    $structure = preg_replace('/--.*$/m', '', $structure);
+                    $structure = preg_replace('/\s+/', ' ', $structure);
+                    $structure = trim($structure);
+                    
+                    if (!empty($structure)) {
+                        $new_tables[$table_name] = [
+                            'structure' => $structure,
+                            'options' => trim($table_options)
+                        ];
+                    }
+                }
+            }
+
+            if (empty($new_tables)) {
+                die(json_encode(['code' => -1, 'msg' => '无法从SQL文件解析出表结构']));
+            }
+
+            // 开始更新结构
+            $updates = 0;
+            $errors = [];
+
+            DB::query("SET FOREIGN_KEY_CHECKS = 0");
+            DB::query("SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO'");
+            
+            foreach ($new_tables as $table => $table_info) {
+                // 检查表是否存在
+                $table_exists = DB::get_row("SHOW TABLES LIKE '$table'") !== null;
+                
+                // 使用原始的表选项，如果为空则使用默认值
+                $table_options = !empty($table_info['options']) ? 
+                               $table_info['options'] : 
+                               "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+                
+                if (!$table_exists) {
+                    // 表不存在，创建新表
+                    $create_sql = "CREATE TABLE `$table` ({$table_info['structure']}) $table_options";
+                    if (DB::query($create_sql)) {
+                        $updates++;
+                    } else {
+                        $errors[] = "创建表 $table 失败: " . DB::error();
+                    }
+                    continue;
+                }
+
+                // 表已存在，创建临时表并迁移数据
+                $temp_table = $table . '_temp_' . time();
+                $create_temp = "CREATE TABLE `$temp_table` ({$table_info['structure']}) $table_options";
+                
+                if (!DB::query($create_temp)) {
+                    $errors[] = "创建临时表 $temp_table 失败: " . DB::error() . "\nSQL: " . $create_temp;
+                    continue;
+                }
+
+                // 获取两个表的字段列表
+                $old_fields = [];
+                $result = DB::query("SHOW COLUMNS FROM `$table`");
+                while ($row = DB::fetch($result)) {
+                    $old_fields[] = $row['Field'];
+                }
+
+                $new_fields = [];
+                $result = DB::query("SHOW COLUMNS FROM `$temp_table`");
+                while ($row = DB::fetch($result)) {
+                    $new_fields[] = $row['Field'];
+                }
+
+                // 找出共同的字段
+                $common_fields = array_intersect($old_fields, $new_fields);
+                
+                if (!empty($common_fields)) {
+                    // 构建字段列表
+                    $field_list = '`' . implode('`, `', $common_fields) . '`';
+                    
+                    // 复制数据
+                    $copy_sql = "INSERT INTO `$temp_table` ($field_list) SELECT $field_list FROM `$table`";
+                    if (!DB::query($copy_sql)) {
+                        $errors[] = "复制表 $table 数据失败: " . DB::error();
+                        DB::query("DROP TABLE IF EXISTS `$temp_table`");
+                        continue;
+                    }
+                }
+
+                // 替换原表
+                if (!DB::query("DROP TABLE `$table`")) {
+                    $errors[] = "删除原表 $table 失败: " . DB::error();
+                    DB::query("DROP TABLE IF EXISTS `$temp_table`");
+                    continue;
+                }
+                
+                if (!DB::query("RENAME TABLE `$temp_table` TO `$table`")) {
+                    $errors[] = "重命名表 $temp_table 失败: " . DB::error();
+                    continue;
+                }
+
+                $updates++;
+            }
+
+            DB::query("SET FOREIGN_KEY_CHECKS = 1");
+
+            if (!empty($errors)) {
+                die(json_encode([
+                    'code' => -1,
+                    'msg' => "更新过程中发生错误:\n" . implode("\n", $errors)
+                ]));
+            }
+
+            die(json_encode([
+                'code' => 1,
+                'msg' => "数据库结构更新成功！共更新 $updates 个表结构",
+                'updates' => $updates
+            ]));
+
+        } catch (Exception $e) {
+            die(json_encode([
+                'code' => -1,
+                'msg' => '更新数据库结构时发生错误：' . $e->getMessage()
+            ]));
+        }
+        break;
 } 

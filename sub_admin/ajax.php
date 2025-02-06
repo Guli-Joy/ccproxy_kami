@@ -1356,9 +1356,36 @@ switch ($act) {
 
     case 'updatepackage':
         try {
+            // 验证必填参数
             $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
-            if(!$id) {
-                exit(json_encode(['code' => 0, 'msg' => '参数错误']));
+            $field = isset($_POST['field']) ? trim($_POST['field']) : '';
+            $value = isset($_POST['value']) ? trim($_POST['value']) : '';
+            
+            if(!$id || empty($field)) {
+                throw new Exception('参数错误');
+            }
+            
+            // 处理时长值
+            if($field === 'days') {
+                // 解析输入的时长字符串
+                if(preg_match('/^(\d+)天(\d+)小时(\d+)分钟$/', $value, $matches)) {
+                    $days = floatval($matches[1]);
+                    $hours = floatval($matches[2]) / 24;
+                    $minutes = floatval($matches[3]) / (24 * 60);
+                    $value = $days + $hours + $minutes;
+                } else if(preg_match('/^(\d+)小时(\d+)分钟$/', $value, $matches)) {
+                    $hours = floatval($matches[1]) / 24;
+                    $minutes = floatval($matches[2]) / (24 * 60);
+                    $value = $hours + $minutes;
+                } else if(preg_match('/^(\d+)分钟$/', $value, $matches)) {
+                    $value = floatval($matches[1]) / (24 * 60);
+                } else {
+                    throw new Exception('时长格式错误');
+                }
+                
+                if($value <= 0 || $value > 365) {
+                    throw new Exception('时长必须大于0且不超过365天');
+                }
             }
             
             // 验证权限
@@ -1479,7 +1506,7 @@ switch ($act) {
             // 验证必填参数
             $appcode = isset($_POST['appcode']) ? trim($_POST['appcode']) : '';
             $package_name = isset($_POST['package_name']) ? trim($_POST['package_name']) : '';
-            $days = isset($_POST['days']) ? intval($_POST['days']) : 0;
+            $days = isset($_POST['days']) ? floatval($_POST['days']) : 0; // 改为浮点数以支持小数天数
             $price = isset($_POST['price']) ? floatval($_POST['price']) : 0;
             
             if(empty($appcode)) {
@@ -1489,7 +1516,10 @@ switch ($act) {
                 exit(json_encode(['code' => 0, 'msg' => '请输入套餐名称']));
             }
             if($days <= 0) {
-                exit(json_encode(['code' => 0, 'msg' => '天数必须大于0']));
+                exit(json_encode(['code' => 0, 'msg' => '时长必须大于0']));
+            }
+            if($days > 365) { // 统一限制最大365天
+                exit(json_encode(['code' => 0, 'msg' => '时长不能超过365天']));
             }
             if($price < 0) {
                 exit(json_encode(['code' => 0, 'msg' => '价格不能小于0']));
@@ -1519,7 +1549,33 @@ switch ($act) {
             
             $result = $DB->insert('packages', $data);
             if($result !== false) {
-                WriteLog("添加套餐", "添加套餐 [{$app['appname']}] {$package_name}", $subconf['username'], $DB);
+                // 转换天数为更友好的显示格式
+                $time_display = '';
+                if($days >= 1) {
+                    $time_display = floor($days) . '天';
+                    $hours = ($days - floor($days)) * 24;
+                    if($hours > 0) {
+                        $time_display .= floor($hours) . '小时';
+                        $minutes = ($hours - floor($hours)) * 60;
+                        if($minutes > 0) {
+                            $time_display .= floor($minutes) . '分钟';
+                        }
+                    }
+                } else {
+                    $hours = $days * 24;
+                    if($hours >= 1) {
+                        $time_display = floor($hours) . '小时';
+                        $minutes = ($hours - floor($hours)) * 60;
+                        if($minutes > 0) {
+                            $time_display .= floor($minutes) . '分钟';
+                        }
+                    } else {
+                        $minutes = $days * 24 * 60;
+                        $time_display = floor($minutes) . '分钟';
+                    }
+                }
+                
+                WriteLog("添加套餐", "添加套餐 [{$app['appname']}] {$package_name} ({$time_display})", $subconf['username'], $DB);
                 exit(json_encode(['code' => 1, 'msg' => '添加成功']));
             } else {
                 exit(json_encode(['code' => 0, 'msg' => '添加失败：数据库操作错误']));
@@ -1535,7 +1591,7 @@ switch ($act) {
             // 验证必填参数
             $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
             $package_name = isset($_POST['package_name']) ? trim($_POST['package_name']) : '';
-            $days = isset($_POST['days']) ? intval($_POST['days']) : 0;
+            $days = isset($_POST['days']) ? floatval($_POST['days']) : 0; // 改为浮点数以支持小数天数
             $price = isset($_POST['price']) ? floatval($_POST['price']) : 0;
             $status = isset($_POST['status']) ? intval($_POST['status']) : 1;
             
@@ -1546,7 +1602,10 @@ switch ($act) {
                 exit(json_encode(['code' => 0, 'msg' => '请输入套餐名称']));
             }
             if($days <= 0) {
-                exit(json_encode(['code' => 0, 'msg' => '天数必须大于0']));
+                exit(json_encode(['code' => 0, 'msg' => '时长必须大于0']));
+            }
+            if($days > 365) { // 统一限制最大365天
+                exit(json_encode(['code' => 0, 'msg' => '时长不能超过365天']));
             }
             if($price < 0) {
                 exit(json_encode(['code' => 0, 'msg' => '价格不能小于0']));
@@ -1577,6 +1636,32 @@ switch ($act) {
             
             $result = $DB->update('packages', $data, "id = $id");
             if($result !== false) {
+                // 转换天数为更友好的显示格式
+                $time_display = '';
+                if($days >= 1) {
+                    $time_display = floor($days) . '天';
+                    $hours = ($days - floor($days)) * 24;
+                    if($hours > 0) {
+                        $time_display .= floor($hours) . '小时';
+                        $minutes = ($hours - floor($hours)) * 60;
+                        if($minutes > 0) {
+                            $time_display .= floor($minutes) . '分钟';
+                        }
+                    }
+                } else {
+                    $hours = $days * 24;
+                    if($hours >= 1) {
+                        $time_display = floor($hours) . '小时';
+                        $minutes = ($hours - floor($hours)) * 60;
+                        if($minutes > 0) {
+                            $time_display .= floor($minutes) . '分钟';
+                        }
+                    } else {
+                        $minutes = $days * 24 * 60;
+                        $time_display = floor($minutes) . '分钟';
+                    }
+                }
+                
                 WriteLog("编辑套餐", "编辑套餐 [{$package['appname']}] {$package_name}, 状态: " . ($status ? '启用' : '禁用'), $subconf['username'], $DB);
                 exit(json_encode(['code' => 1, 'msg' => '编辑成功']));
             } else {

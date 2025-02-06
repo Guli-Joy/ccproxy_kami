@@ -92,7 +92,39 @@ require_once("../config.php");
                             if ($order['mode'] == 'register') {
                                 echo '<div class="info-item"><span class="info-label"><i class="fas fa-key"></i>密码</span><span class="info-value">'.$order['password'].'</span></div>';
                             }
-                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-clock"></i>套餐时长</span><span class="info-value">'.$order['days'].'天</span></div>';
+                            
+                            // 转换时长为友好显示格式
+                            $days = floatval($order['days']);
+                            $totalMinutes = round($days * 24 * 60); // 转换为分钟并四舍五入
+                            $durationDisplay = '';
+                            
+                            if($totalMinutes >= 24 * 60) { // 1天或以上
+                                $remainingDays = floor($totalMinutes / (24 * 60));
+                                $totalMinutes %= (24 * 60);
+                                $durationDisplay .= $remainingDays . '天';
+                                
+                                if($totalMinutes >= 60) { // 还有小时
+                                    $hours = floor($totalMinutes / 60);
+                                    $totalMinutes %= 60;
+                                    $durationDisplay .= $hours . '小时';
+                                }
+                                
+                                if($totalMinutes > 0) { // 还有分钟
+                                    $durationDisplay .= $totalMinutes . '分钟';
+                                }
+                            } elseif($totalMinutes >= 60) { // 1小时到24小时
+                                $hours = floor($totalMinutes / 60);
+                                $totalMinutes %= 60;
+                                $durationDisplay = $hours . '小时';
+                                
+                                if($totalMinutes > 0) { // 还有分钟
+                                    $durationDisplay .= $totalMinutes . '分钟';
+                                }
+                            } else { // 不足1小时
+                                $durationDisplay = $totalMinutes . '分钟';
+                            }
+                            
+                            echo '<div class="info-item"><span class="info-label"><i class="fas fa-clock"></i>套餐时长</span><span class="info-value">'.$durationDisplay.'</span></div>';
                             echo '</div>';
 
                             // 显示应用配置信息

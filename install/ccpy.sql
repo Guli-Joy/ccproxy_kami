@@ -151,7 +151,7 @@ DROP TABLE IF EXISTS `packages`;
 CREATE TABLE `packages` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `package_name` varchar(255) NOT NULL COMMENT '套餐名称',
-  `days` int(11) NOT NULL COMMENT '天数',
+  `days` decimal(10,6) NOT NULL COMMENT '天数(支持小数)',
   `price` decimal(10,2) NOT NULL COMMENT '价格',
   `status` tinyint(1) NOT NULL DEFAULT '1' COMMENT '状态(0:禁用,1:启用)',
   `appcode` varchar(32) NOT NULL COMMENT '应用码',

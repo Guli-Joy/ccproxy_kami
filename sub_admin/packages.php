@@ -165,12 +165,39 @@ layui.use(["jquery", "table", "form", "element"], function() {
             },
             {
                 field: "days",
-                title: "天数",
-                width: 100,
+                title: "时长",
+                width: 120,
                 align: "center",
-                edit: 'text',
                 templet: function(d) {
-                    return d.days + ' 天';
+                    var days = parseFloat(d.days);
+                    var totalMinutes = Math.round(days * 24 * 60); // 转换为分钟并四舍五入
+                    
+                    if(totalMinutes < 1) {
+                        return "小于1分钟";
+                    }
+                    
+                    var result = [];
+                    
+                    // 计算天数
+                    var daysPart = Math.floor(totalMinutes / (24 * 60));
+                    if(daysPart > 0) {
+                        result.push(daysPart + '天');
+                        totalMinutes %= (24 * 60);
+                    }
+                    
+                    // 计算小时
+                    var hoursPart = Math.floor(totalMinutes / 60);
+                    if(hoursPart > 0) {
+                        result.push(hoursPart + '小时');
+                        totalMinutes %= 60;
+                    }
+                    
+                    // 剩余分钟
+                    if(totalMinutes > 0) {
+                        result.push(totalMinutes + '分钟');
+                    }
+                    
+                    return result.join('');
                 }
             },
             {
