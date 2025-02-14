@@ -1233,11 +1233,19 @@ try {
                                 '<div class="info-value">' + state + '</div>' +
                                 '</div>';
 
-                            // 如果卡密已使用，显示使用账号
+                            // 如果卡密已使用，显示使用账号、使用时间和到期时间
                             if (kamiInfo.state == 1) {
                                 html += '<div class="info-item">' +
                                     '<div class="info-label"><i class="layui-icon layui-icon-user"></i>使用账号</div>' +
                                     '<div class="info-value">' + kamiInfo.username + '</div>' +
+                                    '</div>' +
+                                    '<div class="info-item">' +
+                                    '<div class="info-label"><i class="layui-icon layui-icon-time"></i>使用时间</div>' +
+                                    '<div class="info-value">' + kamiInfo.use_date + '</div>' +
+                                    '</div>' +
+                                    '<div class="info-item">' +
+                                    '<div class="info-label"><i class="layui-icon layui-icon-date"></i>到期时间</div>' +
+                                    '<div class="info-value">' + kamiInfo.end_date + '</div>' +
                                     '</div>';
                             }
 
