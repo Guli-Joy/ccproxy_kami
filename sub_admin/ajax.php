@@ -2562,6 +2562,223 @@ switch ($act) {
         }
         break;
 
+    case "cleanexpired":
+        try {
+            // 设置脚本执行时间和内存限制
+            set_time_limit(0);  // 取消时间限制
+            ini_set('memory_limit', '512M');  // 增加内存限制
+            
+            // 获取分页参数
+            $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+            $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 10; // 减小批次大小
+            $app = isset($_POST['app']) ? trim($_POST['app']) : '';
+            
+            // 使用session来防止重复处理
+            $session_key = "clean_expired_" . date('Y-m-d') . ($app ? "_" . $app : "");
+            if($offset == 0) {
+                // 如果是新的清理任务，清除之前的session
+                if(isset($_SESSION[$session_key])) {
+                    unset($_SESSION[$session_key]);
+                }
+                $_SESSION[$session_key] = [
+                    'total' => 0,
+                    'cleaned' => 0,
+                    'skipped' => 0,
+                    'errors' => array(),
+                    'processed' => 0,
+                    'processed_offsets' => array()
+                ];
+
+                // 计算总数时只统计过期账号
+                $total = 0;
+                $users_generator = SerchearchAllServer($app, "", $DB);
+                foreach($users_generator as $users) {
+                    if(is_array($users)) {
+                        foreach($users as $user) {
+                            if(isset($user['disabletime'])) {
+                                $expire_time = strtotime($user['disabletime']);
+                                if($expire_time <= time()) {
+                                    $total++;
+                                }
+                            }
+                        }
+                    }
+                }
+                $_SESSION[$session_key]['total'] = $total;
+                
+                // 释放内存
+                unset($users_generator);
+                unset($users);
+                gc_collect_cycles();
+            }
+
+            // 获取用户列表
+            $users_generator = SerchearchAllServer($app, "", $DB);
+            if(!$users_generator) {
+                throw new Exception('获取用户列表失败');
+            }
+
+            $current_time = time();
+            $current_offset = 0;
+            $processed = 0;
+            $to_delete = array();
+
+            // 处理用户
+            foreach($users_generator as $users) {
+                if(!is_array($users) || empty($users)) {
+                    continue;
+                }
+
+                foreach($users as $user) {
+                    // 跳过不在当前批次的用户
+                    if($current_offset++ < $offset) {
+                        continue;
+                    }
+
+                    // 达到批次大小时停止
+                    if($processed >= $batch_size) {
+                        break 2;
+                    }
+
+                    try {
+                        if(!isset($user['user']) || !isset($user['disabletime']) || !isset($user['serverip'])) {
+                            $_SESSION[$session_key]['skipped']++;
+                            continue;
+                        }
+
+                        // 检查是否过期
+                        $expire_time = strtotime($user['disabletime']);
+                        if($expire_time > $current_time) {
+                            $_SESSION[$session_key]['skipped']++;
+                            continue;
+                        }
+
+                        // 添加到待删除列表
+                        $to_delete[] = [
+                            'user' => $user['user'],
+                            'serverip' => $user['serverip']
+                        ];
+
+                        $processed++;
+                        $_SESSION[$session_key]['processed']++;
+
+                    } catch (Exception $e) {
+                        $_SESSION[$session_key]['errors'][] = "处理用户 {$user['user']} 时出错: " . $e->getMessage();
+                        $_SESSION[$session_key]['skipped']++;
+                    }
+                }
+            }
+
+            // 释放内存
+            unset($users_generator);
+            unset($users);
+            gc_collect_cycles();
+
+            // 批量删除过期账号
+            if(!empty($to_delete)) {
+                $scheduler = new Scheduler;
+                foreach($to_delete as $user) {
+                    $scheduler->addTask(DelUser($user['user'], $user['serverip'], $DB));
+                }
+                $results = $scheduler->run();
+
+                foreach($results as $index => $success) {
+                    if($success) {
+                        $_SESSION[$session_key]['cleaned']++;
+                    } else {
+                        $_SESSION[$session_key]['errors'][] = "删除用户 {$to_delete[$index]['user']} 失败";
+                        $_SESSION[$session_key]['skipped']++;
+                    }
+                }
+
+                // 释放内存
+                unset($scheduler);
+                unset($results);
+                gc_collect_cycles();
+            }
+
+            // 返回结果
+            $result = [
+                'code' => 1,
+                'msg' => '批次处理完成',
+                'details' => [
+                    'total' => $_SESSION[$session_key]['total'],
+                    'total_processed' => $_SESSION[$session_key]['processed'],
+                    'batch_processed' => $processed,
+                    'cleaned' => $_SESSION[$session_key]['cleaned'],
+                    'skipped' => $_SESSION[$session_key]['skipped'],
+                    'has_more' => $processed > 0 && $_SESSION[$session_key]['processed'] < $_SESSION[$session_key]['total'],
+                    'next_offset' => $processed > 0 ? $offset + $processed : $_SESSION[$session_key]['total'],
+                    'errors' => $_SESSION[$session_key]['errors']
+                ]
+            ];
+
+            // 记录操作日志
+            if($_SESSION[$session_key]['cleaned'] > 0) {
+                WriteLog("清理过期账号", "清理了 {$_SESSION[$session_key]['cleaned']} 个过期账号", $subconf['username'], $DB);
+            }
+
+            exit(json_encode($result, JSON_UNESCAPED_UNICODE));
+
+        } catch (Exception $e) {
+            error_log("[" . date('Y-m-d H:i:s') . "] 清理过期账号错误: " . $e->getMessage() . "\n", 3, "../logs/error.log");
+            exit(json_encode([
+                'code' => -1,
+                'msg' => "清理失败: " . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        break;
+
+    case "checkexpired":
+        try {
+            $app = isset($_POST['app']) ? trim($_POST['app']) : '';
+            
+            // 获取用户列表
+            $users_generator = SerchearchAllServer($app, "", $DB);
+            if(!$users_generator) {
+                throw new Exception('获取用户列表失败');
+            }
+
+            $current_time = time();
+            $has_expired = false;
+
+            // 检查是否存在过期账号
+            foreach($users_generator as $users) {
+                if(!is_array($users) || empty($users)) {
+                    continue;
+                }
+
+                foreach($users as $user) {
+                    if(isset($user['disabletime'])) {
+                        $expire_time = strtotime($user['disabletime']);
+                        if($expire_time <= $current_time) {
+                            $has_expired = true;
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            // 释放内存
+            unset($users_generator);
+            unset($users);
+            gc_collect_cycles();
+
+            exit(json_encode([
+                'code' => 1,
+                'has_expired' => $has_expired,
+                'msg' => $has_expired ? '发现过期账号' : '没有过期账号'
+            ], JSON_UNESCAPED_UNICODE));
+
+        } catch (Exception $e) {
+            error_log("[" . date('Y-m-d H:i:s') . "] 检查过期账号错误: " . $e->getMessage() . "\n", 3, "../logs/error.log");
+            exit(json_encode([
+                'code' => -1,
+                'msg' => "检查失败: " . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        break;
+
     default:
         exit(json_encode(["code"=>-4,"msg"=>"No Act"]));
         break;

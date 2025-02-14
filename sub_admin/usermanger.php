@@ -63,6 +63,7 @@ include("foot.php");
 		<div class="layui-btn-container">
 			<button class="layui-btn layui-btn-normal layui-btn-sm" lay-event="search"><i class="layui-icon layui-icon-search"></i><span>搜索</span></button>
 			<button class="layui-btn layui-btn-warm layui-btn-sm" lay-event="compensateTime"><i class="layui-icon layui-icon-time"></i><span>补偿时间</span></button>
+			<button class="layui-btn layui-btn-danger layui-btn-sm" lay-event="cleanExpired"><i class="layui-icon layui-icon-delete"></i><span>清理过期</span></button>
 			<button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="New"><i class="layui-icon layui-icon-add-1"></i><span>新增</span></button>
 			<button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="edit"><i class="layui-icon layui-icon-edit"></i><span>编辑</span></button>
 			<button class="layui-btn layui-btn-danger layui-btn-sm" lay-event="Del"><i class="layui-icon layui-icon-delete"></i><span>删除</span></button>
@@ -356,6 +357,185 @@ include("foot.php");
 							}
 						});
 						break;
+					case 'cleanExpired':
+						layer.open({
+							type: 1,
+							title: '清理过期账号',
+							area: ['400px', '300px'],
+							content: `
+								<div class="layui-form" lay-filter="cleanExpiredForm" style="padding: 20px;">
+									<div class="layui-form-item">
+										<label class="layui-form-label">选择应用</label>
+										<div class="layui-input-block">
+											<select name="clean_app" lay-verify="required">
+												<option value="">请选择应用</option>
+												<option value="all">所有应用</option>
+											</select>
+										</div>
+									</div>
+									<div class="layui-form-item">
+										<div class="layui-input-block">
+											<button class="layui-btn" lay-submit lay-filter="cleanExpiredSubmit">开始清理</button>
+											<button type="reset" class="layui-btn layui-btn-primary">重置</button>
+										</div>
+									</div>
+								</div>
+							`,
+							success: function() {
+								// 初始化应用下拉框
+								$.ajax({
+									url: 'ajax.php?act=getapp',
+									type: 'GET',
+									dataType: 'json',
+									success: function(res) {
+										if(res.code == "1") {
+											var html = '<option value="">请选择应用</option>';
+											html += '<option value="all">所有应用</option>';
+											for(var i = 0; i < res.msg.length; i++) {
+												html += '<option value="' + res.msg[i].appcode + '">' + res.msg[i].appname + '</option>';
+											}
+											$('[name=clean_app]').html(html);
+											form.render('select');
+										} else {
+											layer.msg("获取应用列表失败", {icon: 2});
+										}
+									},
+									error: function() {
+										layer.msg("获取应用列表失败", {icon: 2});
+									}
+								});
+								form.render();
+							}
+						});
+
+						// 监听清理表单提交
+						form.on('submit(cleanExpiredSubmit)', function(data) {
+							layer.confirm('确定要清理选中应用的过期账号吗？此操作不可恢复！', {
+								icon: 3,
+								title: '警告',
+								btn: ['确定清理','取消']
+							}, function(index){
+								// 创建进度提示层
+								var progressIndex = layer.open({
+									type: 1,
+									title: '清理进度',
+									closeBtn: 0,
+									area: ['500px', '200px'],
+									content: `<div style="padding: 20px;">
+										<div class="layui-progress layui-progress-big" lay-showpercent="true" lay-filter="cleanProgress">
+											<div class="layui-progress-bar" lay-percent="0%"></div>
+										</div>
+										<div id="cleanStatus" style="margin-top: 15px;text-align: center;">
+											正在处理中...
+										</div>
+									</div>`
+								});
+
+								// 获取选中的应用
+								var selectedApp = data.field.clean_app === 'all' ? '' : data.field.clean_app;
+
+								// 分批处理函数
+								function processBatch(offset) {
+									$.ajax({
+										url: 'ajax.php',
+										type: 'POST',
+										dataType: 'json',
+										timeout: 60000,
+										data: {
+											act: 'cleanexpired',
+											app: selectedApp,
+											offset: offset,
+											batch_size: 20
+										},
+										success: function(res) {
+											if(res.code == 1) {
+												// 更新进度条
+												var percent = Math.round((res.details.total_processed / res.details.total) * 100);
+												element.progress('cleanProgress', percent + '%');
+												$('#cleanStatus').html('已处理: ' + res.details.total_processed + '/' + res.details.total);
+												
+												// 检查是否还有更多数据需要处理
+												if(res.details.has_more && res.details.total_processed < res.details.total) {
+													// 继续处理下一批，增加延迟
+													setTimeout(function() {
+														processBatch(res.details.next_offset);
+													}, 500);
+												} else {
+													// 当前批次处理完成，检查是否需要开始新一轮清理
+													checkAndStartNewRound(res);
+												}
+											} else {
+												layer.close(progressIndex);
+												layer.msg(res.msg || "清理失败", {icon: 5});
+											}
+										},
+										error: function() {
+											layer.close(progressIndex);
+											layer.msg("清理失败，请重试", {icon: 2});
+										}
+									});
+								}
+
+								// 添加检查并开始新一轮清理的函数
+								function checkAndStartNewRound(lastResult) {
+									// 检查是否还有过期账号
+									$.ajax({
+										url: 'ajax.php',
+										type: 'POST',
+										dataType: 'json',
+										data: {
+											act: 'checkexpired',
+											app: selectedApp
+										},
+										success: function(res) {
+											if(res.code == 1 && res.has_expired) {
+												// 还有过期账号，更新状态消息
+												$('#cleanStatus').html('发现新的过期账号，开始新一轮清理...');
+												
+												// 重置进度条
+												element.progress('cleanProgress', '0%');
+												
+												// 开始新一轮清理
+												setTimeout(function() {
+													processBatch(0);
+												}, 1000);
+											} else {
+												// 所有过期账号都已清理完成
+												layer.close(progressIndex);
+												showFinalCleanResults(lastResult);
+												// 刷新表格
+												reload("server_list");
+											}
+										},
+										error: function() {
+											layer.close(progressIndex);
+											showFinalCleanResults(lastResult);
+											// 刷新表格
+											reload("server_list");
+										}
+									});
+								}
+
+								// 添加显示最终清理结果的函数
+								function showFinalCleanResults(res) {
+									var resultMsg = res.details.cleaned > 0 ? '清理成功' : '没有需要清理的过期账号';
+									
+									layer.alert(resultMsg, {
+										icon: 1,
+										title: '清理完成',
+										btn: ['确定'],
+										anim: 1,
+										shadeClose: true,
+										shade: 0.1
+									});
+								}
+
+								// 开始第一批处理
+								processBatch(0);
+								layer.close(index);
+							});
+						});
+						break;
 				}
 			});
 
@@ -405,7 +585,7 @@ include("foot.php");
 									// 继续处理下一批，增加延迟
 									setTimeout(function() {
 										processBatch(formData, res.details.next_offset);
-									}, 500); // 增加延迟到500ms
+									}, 500);
 								} else {
 									// 处理完成，关闭进度层并显示结果
 									layer.close(progressIndex);
