@@ -1,9 +1,22 @@
 <?php
 
-include("../includes/common.php");
+// 引入必要的文件
+require_once '../includes/common.php';
+require_once '../includes/SecurityFilter.php';
+
 @header('Content-Type: application/json; charset=UTF-8');
 
-$act = isset($_GET['act']) ? strtolower(daddslashes($_GET['act'])) : null;
+// 获取并处理act参数
+$act = isset($_GET['act']) ? strtolower(trim($_GET['act'])) : '';
+
+// 记录请求日志
+$logger->debug('API Request', [
+    'act' => $act,
+    'method' => $_SERVER['REQUEST_METHOD'],
+    'get' => $_GET,
+    'post' => $_POST,
+    'ip' => $clientip
+]);
 
 switch($act){
     case "gethostapp":
@@ -252,6 +265,83 @@ switch($act){
         ]));
     }
     break;
+
+    case "querykami":
+        $kami = isset($_POST['kami']) ? trim($_POST['kami']) : '';
+        
+        // 参数验证
+        if(empty($kami)){
+            $logger->warning('Kami Query Failed', [
+                'reason' => 'Empty kami',
+                'ip' => $clientip,
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'
+            ]);
+            exit(json_encode(['code' => -1, 'msg' => '卡密不能为空']));
+        }
+        
+        // 安全过滤
+        $kami = SecurityFilter::filterInput($kami);
+        
+        try {
+            // 查询卡密信息
+            $row = $DB->selectRow("SELECT k.*, a.appname 
+                                 FROM kami k 
+                                 LEFT JOIN application a ON k.app = a.appcode 
+                                 WHERE k.kami = '".$DB->escape($kami)."' 
+                                 LIMIT 1");
+            
+            if(!$row){
+                $logger->warning('Kami Query Failed', [
+                    'reason' => 'Kami not found',
+                    'kami' => substr($kami, 0, 8) . '****', // 只记录部分卡密信息
+                    'ip' => $clientip
+                ]);
+                exit(json_encode(['code' => -1, 'msg' => '卡密不存在']));
+            }
+            
+            // 构造返回数据
+            $data = [
+                'state' => intval($row['state']),
+                'times' => $row['times'],
+                'found_date' => $row['found_date'],
+                'comment' => SecurityFilter::safeOutput($row['comment']),
+                'app' => isset($row['appname']) ? SecurityFilter::safeOutput($row['appname']) : '未知应用'
+            ];
+            
+            // 如果卡密已使用，添加使用信息
+            if($row['state'] == 1){
+                $data['username'] = SecurityFilter::safeOutput($row['username']);
+                $data['use_date'] = $row['use_date'];
+                $data['end_date'] = $row['end_date'];
+            }
+            
+            // 记录成功查询日志
+            $logger->info('Kami Query Success', [
+                'kami' => substr($kami, 0, 8) . '****', // 只记录部分卡密信息
+                'ip' => $clientip,
+                'state' => $row['state'] ? '已使用' : '未使用',
+                'app' => $data['app']
+            ]);
+            
+            exit(json_encode([
+                'code' => 1,
+                'msg' => '查询成功',
+                'data' => $data
+            ]));
+            
+        } catch (Exception $e) {
+            // 记录详细错误日志
+            $logger->error('Kami Query Error', [
+                'kami' => substr($kami, 0, 8) . '****', // 只记录部分卡密信息
+                'ip' => $clientip,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            exit(json_encode(['code' => -1, 'msg' => '查询失败，请稍后重试']));
+        }
+        break;
 
     default:
         exit(json_encode(["code"=>-4,"msg"=>"No Act"]));

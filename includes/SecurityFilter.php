@@ -31,6 +31,7 @@ class SecurityFilter {
             'password',     
             'pwd',          
             'qianzhui',     // 卡密前缀
+            'kami',         // 卡密字段
             // 网站设置相关字段
             'hostname',     // 网站标题
             'siteurl',      // 主域名

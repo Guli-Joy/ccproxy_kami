@@ -2094,11 +2094,13 @@ switch ($act) {
                 $show_kami_pay = isset($_POST["show_kami_pay"]) ? 1 : 0;
                 $show_kami_reg = isset($_POST["show_kami_reg"]) ? 1 : 0;
                 $show_user_search = isset($_POST["show_user_search"]) ? 1 : 0;
+                $show_kami_query = isset($_POST["show_kami_query"]) ? 1 : 0;
                 
                 $sql .= ",show_online_pay='" . $show_online_pay . "'";
                 $sql .= ",show_kami_pay='" . $show_kami_pay . "'";
                 $sql .= ",show_kami_reg='" . $show_kami_reg . "'";
                 $sql .= ",show_user_search='" . $show_user_search . "'";
+                $sql .= ",show_kami_query='" . $show_kami_query . "'";
                 
                 $sql .= " WHERE username=\"" . addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $subconf['username'])) . "\" ";
                 

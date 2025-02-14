@@ -107,7 +107,9 @@ try {
             border-radius: 8px;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
             color: #fff;
-            margin-bottom: 15px;
+            margin: 15px auto;
+            width: calc(100% - 30px);
+            max-width: calc(100% - 30px);
         }
 
         .result-header {
@@ -185,10 +187,14 @@ try {
             justify-content: space-between;
             padding: 8px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
         }
 
-        .info-item:last-child {
-            border-bottom: none;
+        .info-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            padding-left: 8px;
+            padding-right: 8px;
+            margin: 0 -8px;
         }
 
         .info-label {
@@ -196,20 +202,132 @@ try {
             align-items: center;
             gap: 5px;
             opacity: 0.9;
+            font-weight: 500;
         }
 
         .info-label i {
             font-size: 16px;
+            opacity: 0.8;
+            transition: all 0.3s ease;
+        }
+
+        .info-item:hover .info-label i {
+            opacity: 1;
+            transform: scale(1.1);
         }
 
         .info-value {
             font-weight: 500;
+            word-break: break-all;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .info-value:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateX(5px);
+        }
+
+        .status-active {
+            color: #fff;
+            font-weight: 500;
+            background: rgba(40, 167, 69, 0.3);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .status-expired {
+            color: #fff;
+            font-weight: 500;
+            background: rgba(255, 107, 107, 0.3);
+            padding: 4px 8px;
+            border-radius: 4px;
         }
 
         .success-tips {
             font-size: 14px;
             opacity: 0.8;
             font-style: italic;
+        }
+
+        /* 移动端适配样式 */
+        @media screen and (max-width: 768px) {
+            .query-result {
+                padding: 12px;
+                margin: 10px auto;
+                width: calc(100% - 24px);
+                max-width: calc(100% - 24px);
+            }
+
+            .result-header {
+                margin-bottom: 8px;
+                gap: 6px;
+            }
+
+            .result-header i {
+                font-size: 16px;
+            }
+
+            .time-value {
+                font-size: 14px;
+            }
+
+            .info-item {
+                padding: 6px 0;
+            }
+
+            .info-label {
+                font-size: 13px;
+            }
+
+            .info-value {
+                font-size: 13px;
+            }
+
+            .info-label i {
+                font-size: 14px;
+            }
+
+            .kami-info {
+                padding: 0 35px !important;
+            }
+        }
+
+        /* 电脑端样式 */
+        @media screen and (min-width: 769px) {
+            .kami-info {
+                padding: 0 70px !important;
+            }
+        }
+
+        /* 超小屏幕适配 */
+        @media screen and (max-width: 320px) {
+            .query-result {
+                padding: 10px;
+                margin: 8px auto;
+            }
+
+            .result-header i {
+                font-size: 14px;
+            }
+
+            .time-value {
+                font-size: 13px;
+            }
+
+            .info-item {
+                padding: 5px 0;
+            }
+
+            .info-label, .info-value {
+                font-size: 12px;
+            }
+
+            .info-label i {
+                font-size: 13px;
+            }
         }
     </style>
 </head>
@@ -262,6 +380,9 @@ try {
                     <?php } ?>
                     <?php if($subconf['show_user_search'] == 1) { ?>
                     <li<?php echo ($subconf['show_online_pay'] != 1 && $subconf['show_kami_pay'] != 1 && $subconf['show_kami_reg'] != 1 ? ' class="layui-this"' : ''); ?>>用户查询</li>
+                    <?php } ?>
+                    <?php if($subconf['show_kami_query'] == 1) { ?>
+                    <li<?php echo ($subconf['show_online_pay'] != 1 && $subconf['show_kami_pay'] != 1 && $subconf['show_kami_reg'] != 1 && $subconf['show_user_search'] != 1 ? ' class="layui-this"' : ''); ?>>卡密查询</li>
                     <?php } ?>
                 </ul>
                 <div class="layui-tab-content" style="height: auto;">
@@ -358,6 +479,17 @@ try {
                         </div>
                         <div class="layui-input-block layui-btn-xs submit">
                             <button id="check" type="button" class="layui-btn layui-btn-normal">查询</button>
+                        </div>
+                    </div>
+                    <?php } ?>
+                    <?php if($subconf['show_kami_query'] == 1) { ?>
+                    <div class="layui-tab-item<?php echo ($subconf['show_online_pay'] != 1 && $subconf['show_kami_pay'] != 1 && $subconf['show_kami_reg'] != 1 && $subconf['show_user_search'] != 1 ? ' layui-show' : ''); ?>">
+                        <div class="layui-input-block">
+                            <input type="text" name="km" id="query-kami" class="layui-input inputs" placeholder="请输入要查询的卡密" lay-verify="required" />
+                        </div>
+                        <div class="kami-info"></div>
+                        <div class="layui-input-block layui-btn-xs submit">
+                            <button id="query-kami-btn" type="button" class="layui-btn layui-btn-normal">查询</button>
                         </div>
                     </div>
                     <?php } ?>
@@ -1025,6 +1157,112 @@ try {
                     }
                 });
             });
+
+            // 卡密查询功能
+            $("#query-kami-btn").click(function() {
+                var kami = $("#query-kami").val().trim();
+                if (kami == "") {
+                    return Qmsg.info("卡密不能为空");
+                }
+                if (kami.length < 1) {
+                    return Qmsg.info("卡密长度最小为1位");
+                }
+                if (kami.length > 128) {
+                    return Qmsg.info("卡密长度最大为128位");
+                }
+
+                $.ajax({
+                    url: "api/api.php?act=queryKami",
+                    type: "POST",
+                    dataType: "json",
+                    data: {
+                        'kami': kami
+                    },
+                    timeout: 30000,
+                    beforeSend: function() {
+                        layer.msg("正在查询", {
+                            icon: 16,
+                            shade: 0.05,
+                            time: false
+                        });
+                    },
+                    success: function(data) {
+                        layer.closeAll();
+                        if (data.code == 1) {
+                            var kamiInfo = data.data;
+                            var state = kamiInfo.state == 0 ? '<span class="status-active">未使用</span>' : '<span class="status-expired">已使用</span>';
+                            
+                            // 处理时长显示格式
+                            var duration = kamiInfo.times;
+                            if(duration.includes('+')) {
+                                duration = duration.replace('+', '');
+                                duration = duration.replace('day', '天');
+                                duration = duration.replace('days', '天');
+                                duration = duration.replace('month', '个月');
+                                duration = duration.replace('months', '个月');
+                                duration = duration.replace('year', '年');
+                                duration = duration.replace('years', '年');
+                                duration = duration.replace('hour', '小时');
+                                duration = duration.replace('hours', '小时');
+                                duration = duration.replace('minute', '分钟');
+                                duration = duration.replace('minutes', '分钟');
+                                duration = duration.replace('second', '秒');
+                                duration = duration.replace('seconds', '秒');
+                            }
+                            
+                            var html = '<div class="query-result">' +
+                                '<div class="result-header">' +
+                                '<i class="layui-icon layui-icon-note"></i>' +
+                                '<span class="time-value">卡密信息</span>' +
+                                '</div>' +
+                                '<div class="result-content">' +
+                                '<div class="info-item">' +
+                                '<div class="info-label"><i class="layui-icon layui-icon-app"></i>所属应用</div>' +
+                                '<div class="info-value">' + kamiInfo.app + '</div>' +
+                                '</div>' +
+                                '<div class="info-item">' +
+                                '<div class="info-label"><i class="layui-icon layui-icon-time"></i>创建时间</div>' +
+                                '<div class="info-value">' + kamiInfo.found_date + '</div>' +
+                                '</div>' +
+                                '<div class="info-item">' +
+                                '<div class="info-label"><i class="layui-icon layui-icon-log"></i>卡密时长</div>' +
+                                '<div class="info-value">' + duration + '</div>' +
+                                '</div>' +
+                                '<div class="info-item">' +
+                                '<div class="info-label"><i class="layui-icon layui-icon-circle' + (kamiInfo.state == 0 ? '' : '-dot') + '"></i>使用状态</div>' +
+                                '<div class="info-value">' + state + '</div>' +
+                                '</div>';
+
+                            // 如果卡密已使用，显示使用账号
+                            if (kamiInfo.state == 1) {
+                                html += '<div class="info-item">' +
+                                    '<div class="info-label"><i class="layui-icon layui-icon-user"></i>使用账号</div>' +
+                                    '<div class="info-value">' + kamiInfo.username + '</div>' +
+                                    '</div>';
+                            }
+
+                            html += '</div></div>';
+                            
+                            $(".kami-info").html(html);
+                            Qmsg.success("查询成功");
+                        } else {
+                            $(".kami-info").html('');
+                            Qmsg.error(data.msg);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        layer.closeAll();
+                        layer.msg("查询失败，请稍后重试", {
+                            icon: 2
+                        });
+                        $(".kami-info").html('');
+                        // 清空输入框，避免错误信息被重复提交
+                        $("#query-kami").val('');
+                        console.error("卡密查询错误:", status, error);
+                    }
+                });
+            });
+
             var isModal = <?php echo (empty($conf['wzgg']) || $conf['ggswitch'] != 1) ? 'false' : 'true'; ?>;
             console.log(!$.cookie('op'), isModal)
             if (!$.cookie('op') && isModal == true) {
