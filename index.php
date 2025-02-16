@@ -384,6 +384,9 @@ try {
                     <?php if($subconf['show_kami_query'] == 1) { ?>
                     <li<?php echo ($subconf['show_online_pay'] != 1 && $subconf['show_kami_pay'] != 1 && $subconf['show_kami_reg'] != 1 && $subconf['show_user_search'] != 1 ? ' class="layui-this"' : ''); ?>>卡密查询</li>
                     <?php } ?>
+                    <?php if($subconf['show_change_pwd'] == 1) { ?>
+                    <li<?php echo ($subconf['show_online_pay'] != 1 && $subconf['show_kami_pay'] != 1 && $subconf['show_kami_reg'] != 1 && $subconf['show_user_search'] != 1 && $subconf['show_kami_query'] != 1 ? ' class="layui-this"' : ''); ?>>修改密码</li>
+                    <?php } ?>
                 </ul>
                 <div class="layui-tab-content" style="height: auto;">
                     <?php if($subconf['show_online_pay'] == 1) { ?>
@@ -490,6 +493,34 @@ try {
                         <div class="kami-info"></div>
                         <div class="layui-input-block layui-btn-xs submit">
                             <button id="query-kami-btn" type="button" class="layui-btn layui-btn-normal">查询</button>
+                        </div>
+                    </div>
+                    <?php } ?>
+                    <?php if($subconf['show_change_pwd'] == 1) { ?>
+                    <div class="layui-tab-item<?php echo ($subconf['show_online_pay'] != 1 && $subconf['show_kami_pay'] != 1 && $subconf['show_kami_reg'] != 1 && $subconf['show_user_search'] != 1 && $subconf['show_kami_query'] != 1 ? ' layui-show' : ''); ?>">
+                        <div class="layui-form">
+                            <div class="layui-form-item">
+                                <div class="layui-input-block">
+                                    <select id="change-pwd-app" name="app" lay-filter="app" lay-verify="required">
+                                        <option value="">请选择应用</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="layui-input-block">
+                                <input type="text" name="account" id="change-pwd-account" class="layui-input inputs" placeholder="请输入账号" lay-verify="required" />
+                            </div>
+                            <div class="layui-input-block">
+                                <input type="password" name="old_password" id="change-pwd-old" class="layui-input inputs" placeholder="请输入原密码" lay-verify="required" />
+                            </div>
+                            <div class="layui-input-block">
+                                <input type="password" name="new_password" id="change-pwd-new" class="layui-input inputs" placeholder="请输入新密码" lay-verify="required" />
+                            </div>
+                            <div class="layui-input-block">
+                                <input type="password" name="confirm_password" id="change-pwd-confirm" class="layui-input inputs" placeholder="请确认新密码" lay-verify="required" />
+                            </div>
+                            <div class="layui-input-block layui-btn-xs submit">
+                                <button id="change-pwd-btn" type="button" class="layui-btn layui-btn-normal">修改密码</button>
+                            </div>
                         </div>
                     </div>
                     <?php } ?>
@@ -826,7 +857,7 @@ try {
                     success: function(data) {
                         if (data.code == "1") {
                             // 更新所有应用选择下拉框
-                            var appSelects = $("#sel, #online-pay-app");
+                            var appSelects = $("#sel, #online-pay-app, #change-pwd-app");
                             appSelects.each(function() {
                                 for (var key in data.msg) {
                                     var json = data.msg[key],
@@ -1267,6 +1298,96 @@ try {
                         // 清空输入框，避免错误信息被重复提交
                         $("#query-kami").val('');
                         console.error("卡密查询错误:", status, error);
+                    }
+                });
+            });
+
+            // 修改密码功能
+            $("#change-pwd-btn").click(function() {
+                var app = $("#change-pwd-app").val();
+                var account = $("#change-pwd-account").val().trim();
+                var oldPassword = $("#change-pwd-old").val().trim();
+                var newPassword = $("#change-pwd-new").val().trim();
+                var confirmPassword = $("#change-pwd-confirm").val().trim();
+
+                // 基本验证
+                if (!app) {
+                    return Qmsg.info("请选择应用");
+                }
+                if (!account) {
+                    return Qmsg.info("账号不能为空");
+                }
+                if (!oldPassword) {
+                    return Qmsg.info("原密码不能为空");
+                }
+                if (!newPassword) {
+                    return Qmsg.info("新密码不能为空");
+                }
+                if (!confirmPassword) {
+                    return Qmsg.info("请确认新密码");
+                }
+                if (newPassword !== confirmPassword) {
+                    return Qmsg.warning("两次输入的新密码不一致");
+                }
+
+                // 密码格式验证
+                if (newPassword.length < 8 || newPassword.length > 16) {
+                    return Qmsg.warning("新密码长度必须在8-16位之间");
+                }
+                var hasNumber = /\d/.test(newPassword);
+                var hasLetter = /[a-zA-Z]/.test(newPassword);
+                if (!hasNumber || !hasLetter) {
+                    return Qmsg.warning("新密码必须同时包含数字和字母");
+                }
+                if (!/^[\w]+$/.test(newPassword)) {
+                    return Qmsg.warning("新密码只能包含数字、字母和下划线");
+                }
+
+                // 发送修改密码请求
+                $.ajax({
+                    url: "api/cpproxy.php?type=changepwd",
+                    type: "POST",
+                    dataType: "json",
+                    data: {
+                        'appcode': app,
+                        'user': account,
+                        'old_pwd': oldPassword,
+                        'new_pwd': newPassword
+                    },
+                    timeout: 30000,
+                    beforeSend: function() {
+                        $("#change-pwd-btn").prop("disabled", true);
+                        layer.msg("正在修改密码", {
+                            icon: 16,
+                            shade: 0.05,
+                            time: false
+                        });
+                    },
+                    success: function(data) {
+                        layer.closeAll();
+                        if (data.code == 1) {
+                            layer.msg("密码修改成功", {
+                                icon: 1
+                            });
+                            // 清空输入框
+                            $("#change-pwd-old").val("");
+                            $("#change-pwd-new").val("");
+                            $("#change-pwd-confirm").val("");
+                            Qmsg.success("密码修改成功");
+                        } else {
+                            layer.msg(data.msg || "密码修改失败", {
+                                icon: 5
+                            });
+                            Qmsg.error(data.msg || "密码修改失败");
+                        }
+                        $("#change-pwd-btn").prop("disabled", false);
+                    },
+                    error: function() {
+                        layer.closeAll();
+                        layer.msg("修改密码失败，请稍后重试", {
+                            icon: 2
+                        });
+                        $("#change-pwd-btn").prop("disabled", false);
                     }
                 });
             });

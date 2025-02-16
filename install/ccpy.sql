@@ -267,6 +267,7 @@ CREATE TABLE `sub_admin` (
   `show_kami_reg` int(1) NOT NULL DEFAULT '1' COMMENT '卡密注册开关',
   `show_user_search` int(1) NOT NULL DEFAULT '1' COMMENT '用户查询开关',
   `show_kami_query` int(1) NOT NULL DEFAULT '1' COMMENT '卡密查询开关',
+  `show_change_pwd` int(1) NOT NULL DEFAULT '1' COMMENT '修改密码功能开关',
   `multi_domain` int(1) NOT NULL DEFAULT '0' COMMENT '多域名开关 0=关闭 1=开启',
   `domain_list` text COMMENT '多域名列表',
   PRIMARY KEY (`id`) USING BTREE,
@@ -281,8 +282,8 @@ CREATE TABLE `sub_admin` (
 
 LOCK TABLES `sub_admin` WRITE;
 /*!40000 ALTER TABLE `sub_admin` DISABLE KEYS */;
-INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`, `show_kami_query`, `multi_domain`, `domain_list`) 
-VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','192.168.31.134:8882',1,'','测试公告公告公告测试公告','','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1,1,0,'');
+INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`, `show_kami_query`, `show_change_pwd`, `multi_domain`, `domain_list`) 
+VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','192.168.31.134:8882',1,'','测试公告公告公告测试公告','','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1,1,1,0,'');
 /*!40000 ALTER TABLE `sub_admin` ENABLE KEYS */;
 UNLOCK TABLES;
 

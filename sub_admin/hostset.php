@@ -79,6 +79,13 @@ if (!($islogin == 1)) {
 											<div class="layui-form-mid layui-word-aux">控制卡密查询功能的显示</div>
 										</div>
 									</div>
+									<div class="layui-form-item">
+										<label class="layui-form-label">修改密码</label>
+										<div class="layui-input-block">
+											<input type="checkbox" name="show_change_pwd" lay-skin="switch" lay-text="开启|关闭" <?php echo($subconf["show_change_pwd"]==1 ? 'checked':'');?> />
+											<div class="layui-form-mid layui-word-aux">控制用户修改密码功能的显示</div>
+										</div>
+									</div>
 								</div>
 							</div>
 

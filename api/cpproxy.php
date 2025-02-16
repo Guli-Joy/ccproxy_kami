@@ -19,6 +19,9 @@ if (isset($_REQUEST["type"])) {
         case "query":
             $json = checkquery($DB);
             break;
+        case "changepwd":
+            $json = changepwd($DB);
+            break;
         default:
             $json = ["code" => "无效事务", "icon" => "5"];
     }
@@ -517,6 +520,163 @@ function updatequer($column, $ccp)
     $col = array_column($result, 'disabletime'); //expire
     $col2 = array_column($result, 'expire'); //expire
     return ["disabletime" => $col[0], "expire" => $col2[0]];
+}
+
+/**
+ * 修改密码方法
+ */
+function changepwd($DB) {
+    try {
+        if (isset($_POST["appcode"]) && isset($_POST["user"]) && isset($_POST["old_pwd"]) && isset($_POST["new_pwd"])) {
+            // 获取服务器信息
+            $ip = $DB->selectRow("select serverip from application where appcode='" . $_POST["appcode"] . "'");
+            if(!$ip) {
+                return [
+                    "code" => -1,
+                    "msg" => "应用不存在"
+                ];
+            }
+            
+            $server = $DB->selectRow("select ip,serveruser,password,cport from server_list where ip='" . $ip['serverip'] . "'");
+            if(!$server) {
+                return [
+                    "code" => -1,
+                    "msg" => "服务器不存在"
+                ];
+            }
+            
+            $proxyaddress = $server['ip'];
+            $admin_username = $server['serveruser'];
+            $admin_password = $server['password'];
+            $admin_port = $server['cport'];
+            
+            // 获取用户列表
+            $user_list = query($admin_password, $admin_port, $proxyaddress);
+            if (!$user_list) {
+                return [
+                    "code" => -3,
+                    "msg" => "服务器通信出现问题"
+                ];
+            }
+            
+            // 验证用户是否存在并获取用户信息
+            $current_user = null;
+            foreach ($user_list as $user) {
+                if ($user['user'] == $_POST["user"]) {
+                    $current_user = $user;
+                    break;
+                }
+            }
+            
+            if (!$current_user) {
+                return [
+                    "code" => -1,
+                    "msg" => "账号不存在"
+                ];
+            }
+            
+            if ($current_user['pwd'] != $_POST["old_pwd"]) {
+                return [
+                    "code" => -1,
+                    "msg" => "原密码错误"
+                ];
+            }
+            
+            // 验证新密码格式
+            if (!CheckStrPwd($_POST["new_pwd"])) {
+                return [
+                    "code" => -1,
+                    "msg" => "新密码格式不正确"
+                ];
+            }
+            
+            // 修改密码
+            $fp = fsockopen($proxyaddress, $admin_port, $errno, $errstr, 30);
+            if (!$fp) {
+                return [
+                    "code" => -3,
+                    "msg" => "无法连接到服务器"
+                ];
+            }
+            
+            $url_ = "/account";
+            $url = "edit=1" . "&";
+            $url = $url . "autodisable=1" . "&";
+            $url = $url . "enable=1" . "&";
+            $url = $url . "usepassword=1" . "&";
+            $url = $url . "enablesocks=1" . "&";
+            $url = $url . "enablewww=0" . "&";
+            $url = $url . "enabletelnet=0" . "&";
+            $url = $url . "enabledial=0" . "&";
+            $url = $url . "enableftp=0" . "&";
+            $url = $url . "enableothers=0" . "&";
+            $url = $url . "enablemail=0" . "&";
+            $url = $url . "username=" . $_POST["user"] . "&";
+            $url = $url . "password=" . $_POST["new_pwd"] . "&";
+            // 保持原有的连接数和带宽限制
+            $url = $url . "connection=" . ($current_user['connection'] ?? "-1") . "&";
+            $url = $url . "bandwidth=" . ($current_user['bandwidthup'] ?? "-1") . "/" . ($current_user['bandwidthdown'] ?? "-1") . "&";
+            // 保持原有的到期时间
+            $end_date = explode(" ", $current_user['disabletime']);
+            $url = $url . "disabledate=" . $end_date[0] . "&";
+            $url = $url . "disabletime=" . $end_date[1] . "&";
+            $url = $url . "userid=" . $_POST["user"];
+            
+            $len = "Content-Length: " . strlen($url);
+            $auth = "Authorization: Basic " . base64_encode($admin_username . ":" . $admin_password);
+            $msg = "POST " . $url_ . " HTTP/1.0\r\nHost: " . $proxyaddress . "\r\n" . $auth . "\r\n" . $len . "\r\n" . "\r\n" . $url;
+            
+            fputs($fp, $msg);
+            $response = '';
+            while (!feof($fp)) {
+                $response .= fgets($fp, 4096);
+            }
+            fclose($fp);
+            
+            // 检查响应中是否包含成功标识 - 302 Found 也是成功的标志
+            if (strpos($response, '200 OK') !== false || strpos($response, '302 Found') !== false) {
+                // 验证密码是否真的修改成功
+                $verify_user_list = query($admin_password, $admin_port, $proxyaddress);
+                if ($verify_user_list) {
+                    foreach ($verify_user_list as $verify_user) {
+                        if ($verify_user['user'] == $_POST["user"]) {
+                            if ($verify_user['pwd'] == $_POST["new_pwd"]) {
+                                return [
+                                    "code" => 1,
+                                    "msg" => "密码修改成功"
+                                ];
+                            } else {
+                                return [
+                                    "code" => -1,
+                                    "msg" => "密码修改失败：新密码未生效"
+                                ];
+                            }
+                        }
+                    }
+                }
+                
+                return [
+                    "code" => -1,
+                    "msg" => "密码修改失败：无法验证新密码"
+                ];
+            } else {
+                return [
+                    "code" => -1,
+                    "msg" => "密码修改失败：服务器返回错误"
+                ];
+            }
+        } else {
+            return [
+                "code" => -1,
+                "msg" => "参数不完整"
+            ];
+        }
+    } catch (Exception $e) {
+        return [
+            "code" => -1,
+            "msg" => "修改密码出现异常：" . $e->getMessage()
+        ];
+    }
 }
 
 
