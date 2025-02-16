@@ -587,10 +587,27 @@ function AddUser($proxyaddress,$admin_password,$admin_port,$userdata)
         $connection = "-1";
         $bandwidth = "-1";
         $date=date("Y-m-d H:i:s");
-        if($userdata["expire"]>0){
-            $enddate=date('Y-m-d H:i:s',strtotime("$date + ".$userdata["expire"]." day"));
-        }else{
-            $enddate=date('Y-m-d H:i:s',strtotime($userdata["use_date"]));
+        if(isset($userdata["expire"]) && $userdata["expire"] == "-1") {
+            // 自定义时间
+            if(empty($userdata["use_date"])) {
+                return ["code" => "-1", "msg"=>"自定义时间不能为空", "icon" => "5"];
+            }
+            // 确保日期格式正确
+            if(!is_Date($userdata["use_date"])) {
+                $enddate = date('Y-m-d H:i:s', strtotime($userdata["use_date"] . " 23:59:59"));
+            } else {
+                $enddate = $userdata["use_date"];
+            }
+        } else if(isset($userdata["expire"]) && is_numeric($userdata["expire"]) && $userdata["expire"] > 0) {
+            // 固定天数
+            $days = floatval($userdata["expire"]);
+            $totalSeconds = round($days * 24 * 3600);
+            $enddate = date('Y-m-d H:i:s', strtotime("+{$totalSeconds} seconds"));
+        } else if(isset($userdata["expire"]) && !empty($userdata["expire"])) {
+            // 直接使用传入的expire值(用于支付接口等场景)
+            $enddate = $userdata["expire"];
+        } else {
+            return ["code" => "-1", "msg"=>"无效的到期时间设置", "icon" => "5"];
         }
        
         $end_date = explode(" ", $enddate);

@@ -120,10 +120,14 @@ try {
                         }
                         
                         // 创建新用户
+                        $days = floatval($package['days']);
+                        $totalSeconds = round($days * 24 * 3600); // 转换为秒并四舍五入
+                        $expire = date('Y-m-d H:i:s', strtotime("+{$totalSeconds} seconds"));
+                        
                         $userdata = array(
                             'user' => $order['account'],
                             'pwd' => $order['password'],
-                            'expire' => $package['days'],
+                            'expire' => $expire,
                             'use_date' => date('Y-m-d H:i:s'),
                             'connection' => -1,
                             'bandwidthup' => -1,
