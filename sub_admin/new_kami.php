@@ -241,7 +241,6 @@ if (!($islogin == 1)) {
 			console.log('copy success')
 		}
 		form.on("submit(submit)", function(data) {
-
 			if (data.field.duration == -1) {
 				if (data.field.kamidur == "") {
 					layer.msg("自定义时长不能为空！", {
@@ -251,11 +250,14 @@ if (!($islogin == 1)) {
 				}
 			}
 
+			// 保存表单数据到外部变量
+			var formData = data.field;
+
 			$.ajax({
 				url: "ajax.php?act=newkami",
 				type: "POST",
 				dataType: "json",
-				data: data.field,
+				data: formData,
 				beforeSend: function() {
 					layer.msg("正在提交", {
 						icon: 16,
@@ -263,38 +265,83 @@ if (!($islogin == 1)) {
 						time: false
 					});
 				},
-				success: function(data) {
-					if (data.code == "1") {
+				success: function(res) {
+					if (res.code == "1") {
 						window.parent.frames.reload("daili_kami");
 						parent.layer.closeAll();
 						parent.layer.msg("生成成功", {
 							icon: 1
 						});
-					} else if (data.code == "2") {
+					} else if (res.code == "2") {
 						window.parent.frames.reload("daili_kami");
 						parent.layer.closeAll();
-						parent.layer.msg("生成成功", {
-							icon: 1
-						});
+						
+						// 构建卡密显示内容
 						var kami = "您生成的卡密为：\n\n";
 						var num = 0;
-						for (var key in data.kami) {
-							kami += data.kami[key]["kami"] + "\n"
+						for (var key in res.kami) {
+							kami += res.kami[key]["kami"] + "\n"
 							num++;
 						}
-						console.log('\n' + ' %c 故离❀ %c  ' + '\n', 'color: #fadfa3; background: #030307; padding:5px 0;', 'background: #fadfa3; padding:5px 0;; padding:5px 0');
-						copy(kami + "\n故离CCPROXY卡密系统卡密生成结束共为您生成" + num + "张。");
-						parent.layer.msg("卡密已经复制成功！", {
-							time: 1500
-						})
+
+						// 获取卡密时长显示
+						var duration = "";
+						if (formData.duration == -1) {
+							if (formData.year == "on") duration = formData.kamidur + "年";
+							else if (formData.month == "on") duration = formData.kamidur + "月";
+							else if (formData.day == "on") duration = formData.kamidur + "天";
+							else if (formData.hour == "on") duration = formData.kamidur + "小时";
+							else if (formData.minute == "on") duration = formData.kamidur + "分钟";
+						} else {
+							duration = formData.duration + "天";
+						}
+						
+						// 创建美观的卡密显示弹窗
+						var mainLayer = parent.layer;  // 保存layer引用
+						mainLayer.open({
+							type: 1,
+							title: '卡密生成成功',
+							area: ['400px', 'auto'],
+							maxHeight: '500px',
+							shadeClose: true,
+							content: `
+								<div style="padding: 20px;">
+									<div style="text-align: center; margin-bottom: 15px;">
+										<i class="layui-icon layui-icon-ok-circle" style="font-size: 50px; color: #52c41a;"></i>
+										<p style="margin-top: 10px; font-size: 16px;">成功生成 ${num} 张卡密</p>
+										<p style="margin-top: 5px; color: #666;">有效期：${duration}</p>
+									</div>
+									<div style="background: #f8f8f8; padding: 15px; border-radius: 4px; max-height: 300px; overflow-y: auto;">
+										<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${kami}</pre>
+									</div>
+								</div>
+							`,
+							success: function(layero, index) {
+								// 自动复制
+								try {
+									var tempTextarea = document.createElement('textarea');
+									tempTextarea.value = kami;
+									document.body.appendChild(tempTextarea);
+									tempTextarea.select();
+									if (document.execCommand('copy')) {
+										mainLayer.msg('卡密已自动复制到剪贴板', {
+											icon: 1,
+											time: 1500
+										});
+									}
+									document.body.removeChild(tempTextarea);
+								} catch (err) {
+									console.error('自动复制失败:', err);
+								}
+							}
+						});
 					} else {
-						layer.msg(data.msg, {
+						layer.msg(res.msg, {
 							icon: 5
 						});
 					}
 				},
-				error: function(data) {
-					// console.log(data);
+				error: function(res) {
 					layer.msg("未知错误", {
 						icon: 5
 					});

@@ -37,8 +37,8 @@ if(isset($_POST['username']) && isset($_POST['password'])){
 			}
 		}
 		
-		// 验证密码
-		if($row['password'] === md5($pass)) {
+		// 验证密码 - 支持明文和MD5密码
+		if($row['password'] === $pass || $row['password'] === md5($pass)) {
 			try {
 				unset($_SESSION['xx_session_code']);
 				$session = md5($user.$pass.$password_hash);
