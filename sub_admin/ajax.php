@@ -1675,23 +1675,101 @@ switch ($act) {
         case "getlog":
             if (isset($_REQUEST['page']) && isset($_REQUEST['limit'])) {
                 $sqlpage = isset($_REQUEST['logtime']) != "" ? " and operationdate LIKE '%" . $_REQUEST['logtime'] . "%' " : "1";
-                $sql = "SELECT * FROM `log` WHERE operationer=\"" . $subconf['username'] . "\"" . $sqlpage;
+                $sql = "SELECT * FROM `log` WHERE operationer=\"" . $subconf['username'] . "\"" . $sqlpage . " ORDER BY operationdate DESC";
                 $countpage = $DB->selectRow("select count(*) as num from log where operationer=\"" . $subconf['username'] . "\"" . $sqlpage . "");
                 $app = $DB->selectPage($sql, $DB->pageNo = $_REQUEST['page'], $DB->pageRows = $_REQUEST['limit']);
                 
-                // 重新计算序号
-                $startNum = ($_REQUEST['page'] - 1) * $_REQUEST['limit'] + 1;
-                foreach($app as $key => $value) {
-                    $app[$key]['logid'] = $startNum + $key;
-                }
-                
+                // 不再重新计算序号，直接使用数据库的 logid
                 $json = ["code" => "0", "count" => $countpage['num'], "data" => $app, "icon" => 1];
                 exit(json_encode($json, JSON_UNESCAPED_UNICODE));
-        } else {
+            } else {
                 $json = ["code" => "-1", "count" => null, "data" => "参数错误！", "icon" => "5"];
                 exit(json_encode($json, JSON_UNESCAPED_UNICODE));
             }
         break;
+
+        case "dellog":
+            try {
+                if(!isset($_POST['ids']) || !is_array($_POST['ids'])) {
+                    throw new Exception('参数错误');
+                }
+
+                $ids = array_map('intval', $_POST['ids']);
+                if(empty($ids)) {
+                    throw new Exception('请选择要删除的日志');
+                }
+
+                // 验证所有ID是否属于当前用户
+                $validIds = $DB->select("SELECT logid FROM log WHERE logid IN (" . implode(',', $ids) . ") AND operationer='" . $DB->escape($subconf['username']) . "'");
+                if(empty($validIds)) {
+                    throw new Exception('未找到要删除的日志或无权限删除');
+                }
+
+                // 只删除验证过的ID
+                $validIdArray = array_column($validIds, 'logid');
+
+                // 获取要删除的日志信息用于记录
+                $logs = $DB->select("SELECT * FROM log WHERE logid IN (" . implode(',', $validIdArray) . ")");
+                
+                // 执行删除
+                $result = $DB->delete('log', "logid IN (" . implode(',', $validIdArray) . ")");
+                if($result !== false) {
+                    // 记录删除操作
+                    $logDetails = array_map(function($log) {
+                        return sprintf("[%s] %s: %s", 
+                            $log['operationdate'],
+                            $log['operation'],
+                            $log['msg']
+                        );
+                    }, $logs);
+                    
+                    WriteLog("删除日志", "批量删除日志：\n" . implode("\n", $logDetails), $subconf['username'], $DB);
+                    
+                    exit(json_encode([
+                        'code' => 1,
+                        'msg' => '成功删除 ' . count($validIdArray) . ' 条日志'
+                    ], JSON_UNESCAPED_UNICODE));
+                } else {
+                    throw new Exception('删除失败：数据库操作错误');
+                }
+            } catch(Exception $e) {
+                exit(json_encode([
+                    'code' => -1,
+                    'msg' => $e->getMessage()
+                ], JSON_UNESCAPED_UNICODE));
+            }
+        break;
+
+        case "clearlog":
+            try {
+                // 获取当前用户的日志总数
+                $count = $DB->selectRow("SELECT COUNT(*) as total FROM log WHERE operationer='" . $DB->escape($subconf['username']) . "'");
+                if($count && $count['total'] > 0) {
+                    // 执行清空操作
+                    $result = $DB->delete('log', "operationer='" . $DB->escape($subconf['username']) . "'");
+                    if($result !== false) {
+                        WriteLog("清空日志", "清空了所有日志记录，共 {$count['total']} 条", $subconf['username'], $DB);
+                        exit(json_encode([
+                            'code' => 1,
+                            'msg' => "成功清空 {$count['total']} 条日志记录"
+                        ], JSON_UNESCAPED_UNICODE));
+                    } else {
+                        throw new Exception('清空失败：数据库操作错误');
+                    }
+                } else {
+                    exit(json_encode([
+                        'code' => 1,
+                        'msg' => '没有需要清空的日志'
+                    ], JSON_UNESCAPED_UNICODE));
+                }
+            } catch(Exception $e) {
+                exit(json_encode([
+                    'code' => -1,
+                    'msg' => $e->getMessage()
+                ], JSON_UNESCAPED_UNICODE));
+            }
+        break;
+
     case "getuserall":
         $sqlj = "";
         if (isset($_REQUEST['page']) && isset($_REQUEST['limit'])) {
@@ -1717,6 +1795,7 @@ switch ($act) {
                     }, array());
                     
                     $user_updata = array();
+                    $current_time = time();
                     foreach ($result as $key => $value) {
                         if (empty($value)) continue;
                         
@@ -1727,13 +1806,26 @@ switch ($act) {
                             $appname = $app ? $app['appname'] : '';
                         }
                         
+                        $disabletime = isset($value['autodisable']) ? ($value['autodisable']==0 ? '2099-10-13 14:34:26' : (isset($value['disabletime']) ? $value['disabletime'] : '')) : '';
+                        $is_expired = $disabletime ? (strtotime($disabletime) <= $current_time) : false;
+                        
+                        // 根据expire_filter参数过滤
+                        if (isset($_REQUEST['expire_filter']) && $_REQUEST['expire_filter'] !== 'all') {
+                            if ($_REQUEST['expire_filter'] === 'expired' && !$is_expired) {
+                                continue;
+                            }
+                            if ($_REQUEST['expire_filter'] === 'unexpired' && $is_expired) {
+                                continue;
+                            }
+                        }
+                        
                         $getdata = array(
                             "id" => isset($value['id']) ? $value['id'] : '',
                             "user" => isset($value['user']) ? $value['user'] : '',
                             "pwd" => isset($value['pwd']) ? $value['pwd'] : '',
                             "state" => isset($value['state']) ? $value['state'] : '',
                             "pwdstate" => isset($value['pwdstate']) ? $value['pwdstate'] : '',
-                            "disabletime" => isset($value['autodisable']) ? ($value['autodisable']==0 ? '2099-10-13 14:34:26' : (isset($value['disabletime']) ? $value['disabletime'] : '')) : '',
+                            "disabletime" => $disabletime,
                             "expire" => isset($value['autodisable']) ? ($value['autodisable']==0 ? 0 : (isset($value['expire']) ? $value['expire'] : 0)) : 0,
                             'serverip' => $serverip,
                             'appname' => $appname,
@@ -1756,14 +1848,37 @@ switch ($act) {
                         return array_merge($result, array_values($value));
                     }, array());
                     $user_updata = array();
+                    $current_time = time();
                     foreach ($result as $key => $value) {
+                        if (empty($value)) continue;
+                        
+                        $serverip = isset($value["serverip"]) ? $value["serverip"] : '';
+                        $appname = '';
+                        if ($serverip) {
+                            $app = $DB->selectRow("SELECT appname FROM application WHERE serverip='" . $serverip . "'");
+                            $appname = $app ? $app['appname'] : '';
+                        }
+                        
+                        $disabletime = isset($value['autodisable']) ? ($value['autodisable']==0 ? '2099-10-13 14:34:26' : (isset($value['disabletime']) ? $value['disabletime'] : '')) : '';
+                        $is_expired = $disabletime ? (strtotime($disabletime) <= $current_time) : false;
+                        
+                        // 根据expire_filter参数过滤
+                        if (isset($_REQUEST['expire_filter']) && $_REQUEST['expire_filter'] !== 'all') {
+                            if ($_REQUEST['expire_filter'] === 'expired' && !$is_expired) {
+                                continue;
+                            }
+                            if ($_REQUEST['expire_filter'] === 'unexpired' && $is_expired) {
+                                continue;
+                            }
+                        }
+                        
                         $getdata = array(
                             "id" => $value['id'],
                             "user" => $value['user'],
                             "pwd" => $value['pwd'],
                             "state" => $value['state'],
                             "pwdstate" => $value['pwdstate'],
-                            "disabletime" => $value['autodisable']==0?'2099-10-13 14:34:26':$value['disabletime'],
+                            "disabletime" => $disabletime,
                             "expire" => $value['autodisable']==0?0:$value['expire'],
                             "user" => $value['user'],
                             'serverip' => $value["serverip"],
@@ -1789,14 +1904,37 @@ switch ($act) {
                         return array_merge($result, array_values($value));
                     }, array());
                     $user_updata = array();
+                    $current_time = time();
                     foreach ($result as $key => $value) {
+                        if (empty($value)) continue;
+                        
+                        $serverip = isset($value["serverip"]) ? $value["serverip"] : '';
+                        $appname = '';
+                        if ($serverip) {
+                            $app = $DB->selectRow("SELECT appname FROM application WHERE serverip='" . $serverip . "'");
+                            $appname = $app ? $app['appname'] : '';
+                        }
+                        
+                        $disabletime = isset($value['autodisable']) ? ($value['autodisable']==0 ? '2099-10-13 14:34:26' : (isset($value['disabletime']) ? $value['disabletime'] : '')) : '';
+                        $is_expired = $disabletime ? (strtotime($disabletime) <= $current_time) : false;
+                        
+                        // 根据expire_filter参数过滤
+                        if (isset($_REQUEST['expire_filter']) && $_REQUEST['expire_filter'] !== 'all') {
+                            if ($_REQUEST['expire_filter'] === 'expired' && !$is_expired) {
+                                continue;
+                            }
+                            if ($_REQUEST['expire_filter'] === 'unexpired' && $is_expired) {
+                                continue;
+                            }
+                        }
+                        
                         $getdata = array(
                             "id" => $value['id'],
                             "user" => $value['user'],
                             "pwd" => $value['pwd'],
                             "state" => $value['state'],
                             "pwdstate" => $value['pwdstate'],
-                            "disabletime" => $value['autodisable']==0?'2099-10-13 14:34:26':$value['disabletime'],
+                            "disabletime" => $disabletime,
                             "expire" => $value['autodisable']==0?0:$value['expire'],
                             "user" => $value['user'],
                             'serverip' => $value["serverip"],
@@ -1820,14 +1958,37 @@ switch ($act) {
                         return array_merge($result, array_values($value));
                     }, array());
                     $user_updata = array();
+                    $current_time = time();
                     foreach ($result as $key => $value) {
+                        if (empty($value)) continue;
+                        
+                        $serverip = isset($value["serverip"]) ? $value["serverip"] : '';
+                        $appname = '';
+                        if ($serverip) {
+                            $app = $DB->selectRow("SELECT appname FROM application WHERE serverip='" . $serverip . "'");
+                            $appname = $app ? $app['appname'] : '';
+                        }
+                        
+                        $disabletime = isset($value['autodisable']) ? ($value['autodisable']==0 ? '2099-10-13 14:34:26' : (isset($value['disabletime']) ? $value['disabletime'] : '')) : '';
+                        $is_expired = $disabletime ? (strtotime($disabletime) <= $current_time) : false;
+                        
+                        // 根据expire_filter参数过滤
+                        if (isset($_REQUEST['expire_filter']) && $_REQUEST['expire_filter'] !== 'all') {
+                            if ($_REQUEST['expire_filter'] === 'expired' && !$is_expired) {
+                                continue;
+                            }
+                            if ($_REQUEST['expire_filter'] === 'unexpired' && $is_expired) {
+                                continue;
+                            }
+                        }
+                        
                         $getdata = array(
                             "id" => $value['id'],
                             "user" => $value['user'],
                             "pwd" => $value['pwd'],
                             "state" => $value['state'],
                             "pwdstate" => $value['pwdstate'],
-                            "disabletime" => $value['autodisable']==0?'2099-10-13 14:34:26':$value['disabletime'],
+                            "disabletime" => $disabletime,
                             "expire" => $value['autodisable']==0?0:$value['expire'],
                             "user" => $value['user'],
                             'serverip' => $value["serverip"],

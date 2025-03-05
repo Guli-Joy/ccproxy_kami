@@ -110,7 +110,7 @@ include("foot.php");
 
 				window.where = function() {
 				var data = [
-					"id", "code", "price","user", "state","app"
+					"id", "code", "price", "user", "state", "app", "expire_filter"
 				];
 				var json = {};
 				for (var key in data) {
@@ -722,6 +722,9 @@ include("foot.php");
 			});
 
 			form.on("select(state)", function(data) {
+				reload("server_list");
+			});
+			form.on("select(expire_filter)", function(data) {
 				reload("server_list");
 			});
 			$(".layui-input").keydown(function(e) {

@@ -43,11 +43,9 @@ include("foot.php");
     <!-- <script src="../assets/layui/layui.js"></script> -->
 	<script type="text/html" id="server_listTool">
 		<div class="layui-btn-container">
-        <!-- <button class="layui-btn layui-btn-black layui-btn-sm" lay-event="reload"><i class="layui-icon layui-icon-loading-1 layui-anim layui-anim-rotate layui-anim-loop"></i><span>刷新</span></button> -->
 			<button class="layui-btn layui-btn-normal layui-btn-sm" lay-event="search"><i class="layui-icon layui-icon-search"></i><span>搜索</span></button>
-			<!-- <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="New"><i class="layui-icon layui-icon-add-1"></i><span>新增</span></button>
-			<button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="edit"><i class="layui-icon layui-icon-edit"></i><span>编辑</span></button>
-			<button class="layui-btn layui-btn-danger layui-btn-sm" lay-event="Del"><i class="layui-icon layui-icon-delete"></i><span>删除</span></button> -->
+			<button class="layui-btn layui-btn-danger layui-btn-sm" lay-event="batchDel"><i class="layui-icon layui-icon-delete"></i><span>批量删除</span></button>
+			<button class="layui-btn layui-btn-danger layui-btn-sm" lay-event="clearAll"><i class="layui-icon layui-icon-delete"></i><span>清空日志</span></button>
 		</div>
 	</script>
 	<!-- 表格按钮 -->
@@ -128,10 +126,18 @@ include("foot.php");
 						type: "checkbox"
 					}, {
 						field: "logid",
-						title: "序号",
-						width: 100,
+						title: "ID",
+						width: 80,
 						sort: true,
-						align: "center"
+						align: "center",
+						hide: true
+					}, {
+						title: "序号",
+						width: 80,
+						align: "center",
+						templet: function(d) {
+							return (d.LAY_INDEX + 1);
+						}
 					}, {
 						field: "operation",
 						title: "操作",
@@ -152,6 +158,7 @@ include("foot.php");
 						//minWidth: 100,
 						align: "center",
 						width: 170,
+						sort: true
 						//toolbar: "#stateTool"
 						// sort: true
 					}, {
@@ -179,15 +186,57 @@ include("foot.php");
 					case "search":
 						reload("log");
 						break;
-					case "New":
-						New();
+					case "batchDel":
+						if(checkStatus.data.length === 0) {
+							layer.msg('请选择要删除的日志', {icon: 2});
+							return;
+						}
+						layer.confirm('确定要删除选中的日志吗？', {
+							btn: ['确定','取消']
+						}, function(){
+							var ids = checkStatus.data.map(item => item.logid);
+							$.ajax({
+								url: 'ajax.php?act=dellog',
+								type: 'POST',
+								data: {ids: ids},
+								dataType: 'json',
+								success: function(res) {
+									if(res.code === 1) {
+										layer.msg(res.msg, {icon: 1});
+										reload("log");
+									} else {
+										layer.msg(res.msg || '删除失败', {icon: 2});
+									}
+								},
+								error: function() {
+									layer.msg('网络错误', {icon: 2});
+								}
+							});
+						});
 						break;
-					case "Del":
-						Del(table, checkStatus);
-						break;
-					case "edit":
-						// console.log(checkStatus,obj);
-						edit(checkStatus);
+					case "clearAll":
+						layer.confirm('确定要清空所有日志吗？此操作不可恢复！', {
+							btn: ['确定','取消'],
+							title: '警告',
+							icon: 3
+						}, function(){
+							$.ajax({
+								url: 'ajax.php?act=clearlog',
+								type: 'POST',
+								dataType: 'json',
+								success: function(res) {
+									if(res.code === 1) {
+										layer.msg(res.msg, {icon: 1});
+										reload("log");
+									} else {
+										layer.msg(res.msg || '清空失败', {icon: 2});
+									}
+								},
+								error: function() {
+									layer.msg('网络错误', {icon: 2});
+								}
+							});
+						});
 						break;
 				};
 			});
