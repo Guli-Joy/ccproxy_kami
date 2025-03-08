@@ -64,130 +64,319 @@ function checkquery($DB)
  */
 function checkinsert($DB)
 {
-    if (isset($_POST["user"]) && isset($_POST["pwd"]) && isset($_POST["code"])) {
-        $kami = $DB->selectRow("select count(*) as num,app,times,state,ext from kami where kami='" . $_POST["code"] . "' GROUP BY app,times,state,ext");
-        if ($kami['num'] > 0) {
-            if ($kami['state'] == 0) {
-                $ip = $DB->selectRow("select serverip from application where appcode='" . $kami['app'] . "'");
-                $server = $DB->selectRow("select ip,serveruser,password,cport from server_list where ip='" . $ip['serverip'] . "'"); //$ip['serverip']服务器IP
-                $proxyaddress = $server['ip'];
-                $admin_username = $server['serveruser'];
-                $admin_password = $server['password'];
-                $admin_port = $server['cport'];
-                $date = date("Y-m-d H:i:s");
-                $user = query($admin_password, $admin_port, $proxyaddress);
-                if (!existsuser($_POST["user"], $user)) {
-                    $json = [
-                        "code" => -1,
-                        "msg" => "账号已经存在"
-                    ];
-                } else {
-                    $msg = insert($proxyaddress, $admin_username, $admin_password, $admin_port, $kami['times'], $_POST["user"], $_POST["pwd"], $kami['ext']);
-                    if ($msg["icon"] == 1) {
-                        $usr = array(
-                            'state' => 1,
-                            'username' => $_POST["user"],
-                            'use_date' => date("Y-m-d H:i:s"),
-                            'end_date' => (date('Y-m-d H:i:s', strtotime($date . $kami['times'])))=="1970-01-01 08:00:00"?date('Y-m-d H:i:s', strtotime($date . "+1 day")):date('Y-m-d H:i:s', strtotime($date . $kami['times']))
-                        );
-                        $exec = $DB->update('kami', $usr, "kami=\"" . $_POST["code"] . "\"");
-                        $json = [
-                            "code" => 1,
-                            "msg" => $msg["code"]
-                        ];
-                    } else if (!empty($msg)) {
-                        $json = $msg;
-                    } else {
-                        $json = [
-                            "code" => -3,
-                            "msg" => '<h5 style="color: red;display: inline;">服务器通信出现问题</h5>'
-                        ];
-                    }
-                }
-            } else {
-                $json = [
-                    "code" => -1,
-                    "msg" => "卡密已被使用"
-                ];
+    try {
+        if(!isset($_POST["user"]) || !isset($_POST["pwd"]) || !isset($_POST["code"])) {
+            throw new Exception('参数错误');
+        }
+
+        // 验证卡密
+        $kami = $DB->selectRow("SELECT * FROM kami WHERE kami='" . $DB->escape($_POST["code"]) . "'");
+        if(!$kami) {
+            throw new Exception('卡密不存在');
+        }
+        if($kami['state'] == 1) {
+            throw new Exception('卡密已被使用');
+        }
+
+        // 获取主应用信息
+        $app = $DB->selectRow("SELECT * FROM application WHERE appcode='" . $DB->escape($kami['app']) . "'");
+        if(!$app) {
+            throw new Exception('卡密对应的应用不存在');
+        }
+
+        // 获取服务器信息
+        $server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . $DB->escape($app['serverip']) . "'");
+        if(!$server) {
+            throw new Exception('应用对应的服务器不存在');
+        }
+
+        // 检查用户是否已存在
+        $user_list = query($server['password'], $server['cport'], $server['ip']);
+        if($user_list === false) {
+            throw new Exception('服务器通信出现问题');
+        }
+        foreach($user_list as $user) {
+            if($user['user'] == $_POST["user"]) {
+                throw new Exception('账号已经存在');
             }
-        } else {
-            $json = [
-                "code" => -2,
-                "msg" => "卡密不存在"
+        }
+
+        // 解析扩展参数
+        $ext = json_decode($kami['ext'], true);
+        if(!$ext) {
+            $ext = [
+                'connection' => -1,
+                'bandwidthup' => -1,
+                'bandwidthdown' => -1,
+                'inherit_apps' => []
             ];
         }
-    } else {
-        $json = ["code" => "非法参数", "icon" => "5"];
+
+        // 注册主应用账号
+        $result = insert(
+            $server['ip'],
+            $server['serveruser'],
+            $server['password'],
+            $server['cport'],
+            $kami['times'],
+            $_POST["user"],
+            $_POST["pwd"],
+            json_encode([
+                'connection' => $ext['connection'],
+                'bandwidthup' => $ext['bandwidthup'],
+                'bandwidthdown' => $ext['bandwidthdown']
+            ])
+        );
+
+        if(!$result || $result['icon'] != 1) {
+            throw new Exception($result['msg'] ?? '注册失败');
+        }
+
+        // 处理继承应用
+        $inheritErrors = [];
+        if(isset($ext['inherit_apps']) && is_array($ext['inherit_apps'])) {
+            foreach($ext['inherit_apps'] as $inheritAppcode) {
+                try {
+                    // 获取继承应用信息
+                    $inheritApp = $DB->selectRow("SELECT * FROM application WHERE appcode='" . $DB->escape($inheritAppcode) . "'");
+                    if(!$inheritApp) {
+                        $inheritErrors[] = "继承应用 {$inheritAppcode} 不存在";
+                        continue;
+                    }
+
+                    // 获取继承应用服务器信息
+                    $inheritServer = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . $DB->escape($inheritApp['serverip']) . "'");
+                    if(!$inheritServer) {
+                        $inheritErrors[] = "继承应用 {$inheritAppcode} 的服务器不存在";
+                        continue;
+                    }
+
+                    // 注册继承应用账号
+                    $inheritResult = insert(
+                        $inheritServer['ip'],
+                        $inheritServer['serveruser'],
+                        $inheritServer['password'],
+                        $inheritServer['cport'],
+                        $kami['times'],
+                        $_POST["user"],
+                        $_POST["pwd"],
+                        json_encode([
+                            'connection' => $ext['connection'],
+                            'bandwidthup' => $ext['bandwidthup'],
+                            'bandwidthdown' => $ext['bandwidthdown']
+                        ])
+                    );
+
+                    if(!$inheritResult || $inheritResult['icon'] != 1) {
+                        $inheritErrors[] = "继承应用 {$inheritAppcode} 注册失败: " . ($inheritResult['msg'] ?? '未知错误');
+                    }
+                } catch(Exception $e) {
+                    $inheritErrors[] = "继承应用 {$inheritAppcode} 处理失败: " . $e->getMessage();
+                }
+            }
+        }
+
+        // 更新卡密状态
+        $update = [
+            'state' => 1,
+            'username' => $_POST["user"],
+            'use_date' => date('Y-m-d H:i:s'),
+            'end_date' => date('Y-m-d H:i:s', strtotime(date('Y-m-d H:i:s') . $kami['times']))
+        ];
+        $DB->update('kami', $update, "kami='" . $DB->escape($_POST["code"]) . "'");
+
+        // 返回结果
+        $response = [
+            'code' => 1,
+            'msg' => '注册成功'
+        ];
+
+        if(!empty($inheritErrors)) {
+            $response['msg'] .= "\n但部分继承应用处理失败:\n" . implode("\n", $inheritErrors);
+        }
+
+        return $response;
+
+    } catch(Exception $e) {
+        return [
+            'code' => -1,
+            'msg' => $e->getMessage()
+        ];
     }
-    return   $json;
 }
 /**
  * 续费方法
  */
 function checkupdate($DB)
 {
-    if (isset($_POST["user"]) && isset($_POST["code"])) {
-        $kami = $DB->selectRow("select count(*) as num,app,times,state,ext from kami where kami='" . $_POST["code"] . "' GROUP BY app,times,state,ext");
-        if ($kami['num'] > 0) {
-            if ($kami['state'] == 0) {
-                $ip = $DB->selectRow("select serverip from application where appcode='" . $kami['app'] . "'");
-                $server = $DB->selectRow("select ip,serveruser,password,cport from server_list where ip='" . $ip['serverip'] . "'"); //$ip['serverip']服务器IP
-                $proxyaddress = $server['ip'];
-                $admin_username = $server['serveruser'];
-                $admin_password = $server['password'];
-                $admin_port = $server['cport'];
-                $user = query($admin_password, $admin_port, $proxyaddress);
-                if (existsuser($_POST["user"], $user)) {
-                    $json = [
-                        "code" => -1,
-                        "msg" => "充值账号不存在"
-                    ];
-                    return $json;
-                }
-                $ser = query($admin_password, $admin_port, $proxyaddress);
-                if ($ser == false) {
-                    $json = [
-                        "code" => -3,
-                        "msg" => '<h5 style="color: red;display: inline;">服务器通信出现问题</h5>'
-                    ];
-                } else {
-                    $date = updatequer($_POST["user"], $ser);
-                    if ($date['disabletime'] == "") {
-                        $json = [
-                            "code" => -3,
-                            "msg" => '<h5 style="color: red;display: inline;">账号不存在</h5>'
-                        ];
-                    } else {
-                        $json = [
-                            "code" => 1,
-                            "msg" => update($proxyaddress, $admin_username, $admin_password, $admin_port, $kami['times'], $date, $kami["ext"])
-                        ];
-                        $usr = array(
-                            'state' => 1,
-                            'username' => $_POST["user"],
-                            'use_date' => date("Y-m-d H:i:s"),//"1970-01-01 08:00:00" date('Y-m-d H:i:s', strtotime($date['disabletime'] . $kami['times']))
-                            'end_date' => $date['expire'] == 0 ? (date('Y-m-d H:i:s', strtotime($date['disabletime'] . $kami['times']))=="1970-01-01 08:00:00"?date('Y-m-d H:i:s', strtotime($date['disabletime'] . "+1 day")):date('Y-m-d H:i:s', strtotime($date['disabletime'] . $kami['times']))) : (date('Y-m-d H:i:s', strtotime(date("Y-m-d H:i:s") . $kami['times']))=="1970-01-01 08:00:00"?date('Y-m-d H:i:s', strtotime(date("Y-m-d H:i:s") ."+1 day")):date('Y-m-d H:i:s', strtotime(date("Y-m-d H:i:s") . $kami['times'])))
-                            //'end_date' => $date['expire'] == 0 ? date('Y-m-d H:i:s', strtotime($date['disabletime'] . $kami['times']>0&&$kami['times']<1?((int)($kami['times']*10)) . " hours":((int)$kami['times']) . " day")) : date('Y-m-d H:i:s', strtotime(date("Y-m-d H:i:s") . $kami['times']>0&&$kami['times']<1?((int)($kami['times']*10)) . " hours ":((int)$kami['times']) . " day"))
-                        );
-                        $exec = $DB->update('kami', $usr, "kami='" . $_POST["code"] . "'");
-                    }
-                }
-            } else {
-                $json = [
-                    "code" => -1,
-                    "msg" => "卡密已被使用"
-                ];
+    try {
+        if(!isset($_POST["user"]) || !isset($_POST["code"])) {
+            throw new Exception('参数错误');
+        }
+
+        // 验证卡密
+        $kami = $DB->selectRow("SELECT * FROM kami WHERE kami='" . $DB->escape($_POST["code"]) . "'");
+        if(!$kami) {
+            throw new Exception('卡密不存在');
+        }
+        if($kami['state'] == 1) {
+            throw new Exception('卡密已被使用');
+        }
+
+        // 获取主应用信息
+        $app = $DB->selectRow("SELECT * FROM application WHERE appcode='" . $DB->escape($kami['app']) . "'");
+        if(!$app) {
+            throw new Exception('卡密对应的应用不存在');
+        }
+
+        // 获取服务器信息
+        $server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . $DB->escape($app['serverip']) . "'");
+        if(!$server) {
+            throw new Exception('应用对应的服务器不存在');
+        }
+
+        // 检查用户是否存在
+        $user_list = query($server['password'], $server['cport'], $server['ip']);
+        if($user_list === false) {
+            throw new Exception('服务器通信出现问题');
+        }
+
+        $user_found = false;
+        $user_data = null;
+        foreach($user_list as $user) {
+            if($user['user'] == $_POST["user"]) {
+                $user_found = true;
+                $user_data = $user;
+                break;
             }
-        } else {
-            $json = [
-                "code" => -2,
-                "msg" => "卡密不存在"
+        }
+
+        if(!$user_found) {
+            throw new Exception('充值账号不存在');
+        }
+
+        // 解析扩展参数
+        $ext = json_decode($kami['ext'], true);
+        if(!$ext) {
+            $ext = [
+                'connection' => -1,
+                'bandwidthup' => -1,
+                'bandwidthdown' => -1,
+                'inherit_apps' => []
             ];
         }
-    } else {
-        $json = ["code" => "非法参数", "icon" => "5"];
+
+        // 续费主应用账号
+        $result = update(
+            $server['ip'],
+            $server['serveruser'],
+            $server['password'],
+            $server['cport'],
+            $kami['times'],
+            $user_data,
+            json_encode([
+                'connection' => $ext['connection'],
+                'bandwidthup' => $ext['bandwidthup'],
+                'bandwidthdown' => $ext['bandwidthdown']
+            ])
+        );
+
+        if(!$result || $result['icon'] != 1) {
+            throw new Exception($result['msg'] ?? '续费失败');
+        }
+
+        // 处理继承应用
+        $inheritErrors = [];
+        if(isset($ext['inherit_apps']) && is_array($ext['inherit_apps'])) {
+            foreach($ext['inherit_apps'] as $inheritAppcode) {
+                try {
+                    // 获取继承应用信息
+                    $inheritApp = $DB->selectRow("SELECT * FROM application WHERE appcode='" . $DB->escape($inheritAppcode) . "'");
+                    if(!$inheritApp) {
+                        $inheritErrors[] = "继承应用 {$inheritAppcode} 不存在";
+                        continue;
+                    }
+
+                    // 获取继承应用服务器信息
+                    $inheritServer = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . $DB->escape($inheritApp['serverip']) . "'");
+                    if(!$inheritServer) {
+                        $inheritErrors[] = "继承应用 {$inheritAppcode} 的服务器不存在";
+                        continue;
+                    }
+
+                    // 检查继承应用账号是否存在
+                    $inheritUserList = query($inheritServer['password'], $inheritServer['cport'], $inheritServer['ip']);
+                    if($inheritUserList === false) {
+                        $inheritErrors[] = "继承应用 {$inheritAppcode} 服务器通信失败";
+                        continue;
+                    }
+
+                    $inheritUserFound = false;
+                    $inheritUserData = null;
+                    foreach($inheritUserList as $inheritUser) {
+                        if($inheritUser['user'] == $_POST["user"]) {
+                            $inheritUserFound = true;
+                            $inheritUserData = $inheritUser;
+                            break;
+                        }
+                    }
+
+                    if(!$inheritUserFound) {
+                        $inheritErrors[] = "继承应用 {$inheritAppcode} 账号不存在,无法续费";
+                        continue;
+                    }
+
+                    // 续费继承应用账号
+                    $inheritResult = update(
+                        $inheritServer['ip'],
+                        $inheritServer['serveruser'],
+                        $inheritServer['password'],
+                        $inheritServer['cport'],
+                        $kami['times'],
+                        $inheritUserData,
+                        json_encode([
+                            'connection' => $ext['connection'],
+                            'bandwidthup' => $ext['bandwidthup'],
+                            'bandwidthdown' => $ext['bandwidthdown']
+                        ])
+                    );
+
+                    if(!$inheritResult || $inheritResult['icon'] != 1) {
+                        $inheritErrors[] = "继承应用 {$inheritAppcode} 续费失败: " . ($inheritResult['msg'] ?? '未知错误');
+                    }
+                } catch(Exception $e) {
+                    $inheritErrors[] = "继承应用 {$inheritAppcode} 处理失败: " . $e->getMessage();
+                }
+            }
+        }
+
+        // 更新卡密状态
+        $update = [
+            'state' => 1,
+            'username' => $_POST["user"],
+            'use_date' => date('Y-m-d H:i:s'),
+            'end_date' => date('Y-m-d H:i:s', strtotime(date('Y-m-d H:i:s') . $kami['times']))
+        ];
+        $DB->update('kami', $update, "kami='" . $DB->escape($_POST["code"]) . "'");
+
+        // 返回结果
+        $response = [
+            'code' => 1,
+            'msg' => '续费成功'
+        ];
+
+        if(!empty($inheritErrors)) {
+            $response['msg'] .= "\n但部分继承应用处理失败:\n" . implode("\n", $inheritErrors);
+        }
+
+        return $response;
+
+    } catch(Exception $e) {
+        return [
+            'code' => -1,
+            'msg' => $e->getMessage()
+        ];
     }
-    return   $json;
 }
 
 
@@ -348,16 +537,13 @@ function update($proxyaddress, $admin_username, $admin_password, $admin_port, $d
         $connection = json_decode($ext, true)["connection"];
         $bandwidth = json_decode($ext, true)["bandwidthup"] . "/" . json_decode($ext, true)["bandwidthdown"];
         $cdate = date("Y-m-d H:i:s");
-        // var_dump($date['expire'],$date['disabletime']);
-        // 0 未到期 1 到期
-        //$enddate = date('Y-m-d H:i:s', strtotime("$date $day"));
+        
         $enddate = "";
         try{
             $enddate = $date['expire'] == 0 ? date('Y-m-d H:i:s', strtotime($date['disabletime'] . $day)) : date('Y-m-d H:i:s', strtotime($cdate . $day));
-        }catch(Exception $e){    // $e 为一个异常类的对象
-        
+        }catch(Exception $e){
+            error_log("计算到期时间出错: " . $e->getMessage());
             $enddate = $date['expire'] == 0 ? date('Y-m-d H:i:s', strtotime($date['disabletime'] . "+1 day")) : date('Y-m-d H:i:s', strtotime($cdate . "+1 day"));
-            
         }
 
         if($enddate=="1970-01-01 08:00:00")
@@ -365,8 +551,6 @@ function update($proxyaddress, $admin_username, $admin_password, $admin_port, $d
             $enddate = $date['expire'] == 0 ? date('Y-m-d H:i:s', strtotime($date['disabletime'] . "+1 day")) : date('Y-m-d H:i:s', strtotime($cdate . "+1 day"));
         }
 
-        //$enddate = $date['expire'] == 0 ? date('Y-m-d H:i:s', strtotime($date['disabletime'] . ($day>0&&$day<1?((int)$day*10) . " hours":((int)$day) . " day"))) : date('Y-m-d H:i:s', strtotime($cdate . $day . " day"));
-        // $enddate=date('Y-m-d H:i:s',strtotime("$date + ".$day." day"));
         $end_date = explode(" ", $enddate);
         $disabledate = $end_date[0];
         $disabletime = $end_date[1];
@@ -387,7 +571,6 @@ function update($proxyaddress, $admin_username, $admin_password, $admin_port, $d
             $url = $url . "enableothers=0" . "&";
             $url = $url . "enablemail=0" . "&";
             $url = $url . "username=" . $username . "&";
-            // $url = $url."password=".$password."&";
             $url = $url . "connection=" . $connection . "&";
             $url = $url . "bandwidth=" . $bandwidth . "&";
             $url = $url . "disabledate=" . $disabledate . "&";
@@ -397,10 +580,8 @@ function update($proxyaddress, $admin_username, $admin_password, $admin_port, $d
             $auth = "Authorization: Basic " . base64_encode($admin_username . ":" . $admin_password);
             $msg = "POST " . $url_ . " HTTP/1.0\r\nHost: " . $proxyaddress . "\r\n" . $auth . "\r\n" . $len . "\r\n" . "\r\n" . $url;
             fputs($fp, $msg);
-            //echo $msg;
             while (!feof($fp)) {
                 $s = fgets($fp, 4096);
-                //echo $s;
             }
             fclose($fp);
             return ["code" => "更新用户成功", "icon" => "1"];
@@ -425,13 +606,11 @@ function query($adminpassword, $adminport, $proxyaddress)
 {
     $url = "http://" . $proxyaddress . ":" . $adminport . "/account";
     parse_url($url);
-    //print_r();// 解析 URL，返回其组成部分
     $data = array();
-    $query_str = http_build_query($data); // http_build_query()函数的作用是使用给出的关联（或下标）数组生成一个经过 URL-encode 的请求字符串
+    $query_str = http_build_query($data);
     $info = parse_url($url);
     $fp = fsockopen($proxyaddress, $adminport, $errno, $errstr, 30);
     if (!$fp) {
-        // echo "$errstr ($errno)<br>\n";
         return false;
     } else {
         $auth = "Authorization: Basic " . base64_encode("admin:" . $adminpassword);
@@ -441,12 +620,10 @@ function query($adminpassword, $adminport, $proxyaddress)
         $line = "";
         while (!feof($fp)) {
             $line .= fread($fp, 4096);
-            // echo str_replace(array("<",">","/"),array("&lt;","&gt;",""), $line);
         }
         fclose($fp);
     }
-    //echo $line; 
-    //取出div标籤且id为PostContent的内容，并储存至阵列match
+    
     preg_match_all('/<input .* name="username" .* value="(.*?)"/ui', $line, $match);
     preg_match_all('/<input .* name="password" .* value="(.*?)"/ui', $line, $match2);
     preg_match_all('/<input .* name="enable" .*/', $line, $match3);
@@ -457,7 +634,6 @@ function query($adminpassword, $adminport, $proxyaddress)
     $ccp = array();
     $time = date("Y-m-d H:i:s");
     foreach ($match[1] as $key => $use) {
-        // 替换 < > 为空 并赋值为 1
         strripos(str_replace(array("<", ">", "/"), array(""), $match3[0][$key]), "checked") != "46" ? $match3[0][$key] = 0 : $match3[0][$key] = 1;
         strripos(str_replace(array("<", ">", "/"), array(""), $match4[0][$key]), "checked") != "51" ? $match4[0][$key] = 0 : $match4[0][$key] = 1;
         strripos(str_replace(array("<", ">", "/"), array(""), $match7[0][$key]), "checked") != "51" ? $match7[0][$key] = 0 : $match7[0][$key] = 1;
@@ -613,10 +789,8 @@ function changepwd($DB) {
             $url = $url . "enablemail=0" . "&";
             $url = $url . "username=" . $_POST["user"] . "&";
             $url = $url . "password=" . $_POST["new_pwd"] . "&";
-            // 保持原有的连接数和带宽限制
             $url = $url . "connection=" . ($current_user['connection'] ?? "-1") . "&";
             $url = $url . "bandwidth=" . ($current_user['bandwidthup'] ?? "-1") . "/" . ($current_user['bandwidthdown'] ?? "-1") . "&";
-            // 保持原有的到期时间
             $end_date = explode(" ", $current_user['disabletime']);
             $url = $url . "disabledate=" . $end_date[0] . "&";
             $url = $url . "disabletime=" . $end_date[1] . "&";
@@ -633,9 +807,7 @@ function changepwd($DB) {
             }
             fclose($fp);
             
-            // 检查响应中是否包含成功标识 - 302 Found 也是成功的标志
             if (strpos($response, '200 OK') !== false || strpos($response, '302 Found') !== false) {
-                // 验证密码是否真的修改成功
                 $verify_user_list = query($admin_password, $admin_port, $proxyaddress);
                 if ($verify_user_list) {
                     foreach ($verify_user_list as $verify_user) {
@@ -646,6 +818,7 @@ function changepwd($DB) {
                                     "msg" => "密码修改成功"
                                 ];
                             } else {
+                                error_log("密码修改失败：新密码未生效");
                                 return [
                                     "code" => -1,
                                     "msg" => "密码修改失败：新密码未生效"
@@ -655,11 +828,13 @@ function changepwd($DB) {
                     }
                 }
                 
+                error_log("密码修改失败：无法验证新密码");
                 return [
                     "code" => -1,
                     "msg" => "密码修改失败：无法验证新密码"
                 ];
             } else {
+                error_log("密码修改失败：服务器返回错误");
                 return [
                     "code" => -1,
                     "msg" => "密码修改失败：服务器返回错误"
@@ -672,11 +847,61 @@ function changepwd($DB) {
             ];
         }
     } catch (Exception $e) {
+        error_log("修改密码出现异常：" . $e->getMessage());
         return [
             "code" => -1,
             "msg" => "修改密码出现异常：" . $e->getMessage()
         ];
     }
+}
+
+// 获取继承配置
+function getInheritConfig($DB) {
+    global $subconf;
+    
+    if(!$subconf['inherit_enabled']) {
+        return null;
+    }
+    
+    try {
+        if(empty($subconf['inherit_groups'])) {
+            return null;
+        }
+        
+        // 递归解码HTML实体
+        $decoded_str = $subconf['inherit_groups'];
+        $prev_str = '';
+        while($decoded_str !== $prev_str) {
+            $prev_str = $decoded_str;
+            $decoded_str = html_entity_decode($decoded_str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        
+        $config = json_decode($decoded_str, true);
+        if(!$config || !isset($config['groups']) || !is_array($config['groups'])) {
+            return null;
+        }
+        
+        return $config;
+    } catch(Exception $e) {
+        error_log("解析继承配置失败: " . $e->getMessage());
+        return null;
+    }
+}
+
+// 获取应用的继承应用列表
+function getInheritApps($appcode, $config) {
+    if(!$config || !isset($config['groups'])) {
+        return [];
+    }
+    
+    $inheritApps = [];
+    foreach($config['groups'] as $group) {
+        if(in_array($appcode, $group['main_apps'])) {
+            $inheritApps = array_merge($inheritApps, $group['inherit_apps']);
+        }
+    }
+    
+    return array_unique($inheritApps);
 }
 
 

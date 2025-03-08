@@ -451,145 +451,100 @@ switch ($act) {
         }
         break;
     case "newkami":
-        if (isset($_POST['app']) && isset($_POST['qianzhui']) && isset($_POST["duration"]) && isset($_POST["kamidur"]) && isset($_POST["kaminum"]) && isset($_POST["comment"]) && isset($_POST["kamilen"])&& isset($_POST["connection"])&& isset($_POST["bandwidthup"])&& isset($_POST["bandwidthdown"])) {
-            // $sql="UPDATE server_list SET state=\"".addslashes($_POST["state"])."\" WHERE ip=\"".addslashes(str_replace(array("<",">","/"),array("&lt;","&gt;",""),$_POST['ip']))."\" ";
-            // $result=$DB->exe($sql);
-
-            if(!empty($_POST["connection"])&&!is_numeric($_POST["connection"])){
-                exit(json_encode( $code = [ "code" => "-1",  "msg" => "输入类型错误",  "kami" => ""], JSON_UNESCAPED_UNICODE));
+        try {
+            // 验证必要参数
+            if(!isset($_POST['app']) || !isset($_POST['duration']) || !isset($_POST['kaminum'])) {
+                throw new Exception('参数错误');
             }
 
-            if(!empty($_POST["bandwidthup"])&&!is_numeric($_POST["bandwidthup"])){
-                exit(json_encode( $code = [ "code" => "-1",  "msg" => "输入类型错误",  "kami" => ""], JSON_UNESCAPED_UNICODE));
-            }
-
-            if(!empty($_POST["bandwidthdown"])&&!is_numeric($_POST["bandwidthdown"])){
-                exit(json_encode( $code = [ "code" => "-1",  "msg" => "输入类型错误",  "kami" => ""], JSON_UNESCAPED_UNICODE));
-            }
-
-            if(!empty($_POST["kamidur"])){
-                // 允许小数,但不能小于0.1
-                if(floatval($_POST["kamidur"]) < 0.1){
-                    exit(json_encode([
-                        "code" => "-1",
-                        "msg" => "自定义时长不能小于0.1",
-                        "kami" => ""
-                    ], JSON_UNESCAPED_UNICODE));
+            // 获取继承配置
+            $inheritConfig = null;
+            if($subconf['inherit_enabled']) {
+                if(!empty($subconf['inherit_groups'])) {
+                    $decoded_str = $subconf['inherit_groups'];
+                    $prev_str = '';
+                    while($decoded_str !== $prev_str) {
+                        $prev_str = $decoded_str;
+                        $decoded_str = html_entity_decode($decoded_str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    }
+                    $inheritConfig = json_decode($decoded_str, true);
                 }
             }
 
-            $kamidurdangwei="+".floatval((!empty($_POST["kamidur"])?$_POST["kamidur"]:$_POST["duration"]));
-
-            $kamicount=0;
-
-            if(isset($_POST["year"]) && $_POST["year"]=="on")
-            {
-                $kamidurdangwei.=" year";
-                $kamicount++;
-            }
-
-            if(isset($_POST["month"]) && $_POST["month"]=="on")
-            {
-                $kamidurdangwei.=" month"; 
-                $kamicount++;
-            }
-
-            if(isset($_POST["day"]) && $_POST["day"]=="on")
-            {
-                $kamidurdangwei.=" day";
-                $kamicount++;
-            }
-
-            if(isset($_POST["hour"]) && $_POST["hour"]=="on")
-            {
-                $kamidurdangwei.=" hour";
-                $kamicount++;
-            }
-
-            if(isset($_POST["minute"]) && $_POST["minute"]=="on")
-            {
-                $kamidurdangwei.=" minute";
-                $kamicount++;
-            }
-
-            if($kamicount!=1)
-            {
-                exit(json_encode( $code = [ "code" => "-1",  "msg" => "请选择卡密类型",  "kami" => ""], JSON_UNESCAPED_UNICODE));
-            }
-
-            $kami = array();
-            for ($i = 0; $i < $_POST["kaminum"]; $i++) {
-                $kami[$i] = array(
-                    "kami" => random($_POST["kamilen"] == "" ? 16 : $_POST["kamilen"], $_POST['qianzhui'] == "" ? null : $_POST['qianzhui'])
-                );
-            }
-
-            if(empty($_POST["connection"])||$_POST["connection"]<=0){
-                $_POST["connection"]=-1;
-            }
-            if(empty($_POST["bandwidthup"])||$_POST["bandwidthup"]<=0){
-                $_POST["bandwidthup"]=-1;
-            }else
-            {
-                $_POST["bandwidthup"]*=1024;
-            }
-            if(empty($_POST["bandwidthdown"])||$_POST["bandwidthdown"]<=0){
-                $_POST["bandwidthdown"]=-1;
-            }else{
-                $_POST["bandwidthdown"]*=1024;
-            }
-            $flag = true;
-            $ext=[
-                "connection"=>empty($_POST["connection"])?-1:(int)$_POST["connection"],
-                "bandwidthup"=>empty($_POST["bandwidthup"])?-1:(int)$_POST["bandwidthup"],
-                "bandwidthdown"=>empty($_POST["bandwidthdown"])?-1:(int)$_POST["bandwidthdown"]
-            ];
-            foreach ($kami as $key => $ka) {
-                $arr = array(
-                    'kami'  => $kami[$key]["kami"],
-                    'times'  => $kamidurdangwei,
-                    //'times'  => $_POST["duration"] == -1 ? ($_POST["kamidur"]<1?round($_POST["kamidur"],1):$_POST["kamidur"]) : $_POST["duration"],
-                    'host'  => $subconf['siteurl'],
-                    'sc_user'  => $subconf['username'],
-                    'state'  => 0,
-                    'app'  => $_POST["app"],
-                    'comment'  => $_POST["comment"],
-                    'ext'=>json_encode($ext)
-                );
-                //print_r($arr);
-                $exec = $DB->insert('kami', $arr);
-                if (!$exec) {
-                    $flag = false;
+            // 获取继承应用列表
+            $inheritApps = [];
+            if($inheritConfig && isset($inheritConfig['groups'])) {
+                foreach($inheritConfig['groups'] as $group) {
+                    if(in_array($_POST['app'], $group['main_apps'])) {
+                        $inheritApps = array_merge($inheritApps, $group['inherit_apps']);
+                    }
                 }
+                $inheritApps = array_unique($inheritApps);
             }
-            if ($flag) {
-                if (isset($_POST['copy'])) {
-                    $code = [
-                        "code" => "2",
-                        "msg" => "更新成功",
-                        "kami" => $kami
-                    ];
-                    WriteLog("卡密", "卡密" . $_POST['app'], $subconf['username'], $DB);
-                } else {
-                    $code = [
-                        "code" => "1",
-                        "msg" => "更新成功"
-                    ];
-                    WriteLog("卡密", "卡密" . $_POST['app'], $subconf['username'], $DB);
-                }
+
+            // 构建卡密时长
+            $kamidurdangwei = "";
+            if(!empty($_POST["kamidur"])) {
+                $kamidurdangwei = "+" . floatval($_POST["kamidur"]);
+                if(isset($_POST["year"]) && $_POST["year"]=="on") $kamidurdangwei .= " year";
+                if(isset($_POST["month"]) && $_POST["month"]=="on") $kamidurdangwei .= " month";
+                if(isset($_POST["day"]) && $_POST["day"]=="on") $kamidurdangwei .= " day";
+                if(isset($_POST["hour"]) && $_POST["hour"]=="on") $kamidurdangwei .= " hour";
+                if(isset($_POST["minute"]) && $_POST["minute"]=="on") $kamidurdangwei .= " minute";
             } else {
-                $code = [
-                    "code" => "0",
-                    "msg" => "更新失败"
-                ];
+                $kamidurdangwei = "+" . $_POST["duration"] . " day";
             }
-            exit(json_encode($code, JSON_UNESCAPED_UNICODE));
-        } else {
-            $code = [
-                "code" => "0",
-                    "msg" => "参数误"
+
+            // 构建扩展参数
+            $ext = [
+                "connection" => empty($_POST["connection"]) || $_POST["connection"]<=0 ? -1 : (int)$_POST["connection"],
+                "bandwidthup" => empty($_POST["bandwidthup"]) || $_POST["bandwidthup"]<=0 ? -1 : (int)$_POST["bandwidthup"]*1024,
+                "bandwidthdown" => empty($_POST["bandwidthdown"]) || $_POST["bandwidthdown"]<=0 ? -1 : (int)$_POST["bandwidthdown"]*1024,
+                "inherit_apps" => $inheritApps // 添加继承应用信息到扩展参数
             ];
-            exit(json_encode($code, JSON_UNESCAPED_UNICODE));
+
+            // 生成卡密
+            $kami = [];
+            for($i = 0; $i < $_POST["kaminum"]; $i++) {
+                $kamiCode = random($_POST["kamilen"] == "" ? 16 : $_POST["kamilen"], $_POST['qianzhui'] == "" ? null : $_POST['qianzhui']);
+                $kami[] = [
+                    "kami" => $kamiCode
+                ];
+
+                // 保存卡密到数据库
+                $data = [
+                    'kami' => $kamiCode,
+                    'times' => $kamidurdangwei,
+                    'host' => $subconf['siteurl'],
+                    'sc_user' => $subconf['username'],
+                    'state' => 0,
+                    'app' => $_POST["app"],
+                    'comment' => $_POST["comment"] ?? '',
+                    'ext' => json_encode($ext)
+                ];
+                
+                $DB->insert('kami', $data);
+            }
+
+            // 返回结果
+            if(isset($_POST['copy'])) {
+                exit(json_encode([
+                        "code" => "2",
+                    "msg" => "生成成功",
+                        "kami" => $kami
+                ]));
+                } else {
+                exit(json_encode([
+                        "code" => "1",
+                    "msg" => "生成成功"
+                ]));
+            }
+
+        } catch(Exception $e) {
+            exit(json_encode([
+                "code" => "-1",
+                "msg" => $e->getMessage()
+            ]));
         }
         break;
     case "getapp":
@@ -2175,118 +2130,188 @@ switch ($act) {
         exit(json_encode($code, JSON_UNESCAPED_UNICODE));
         break;
         case "updateset":
-            $result = ['user_key', 'kf', 'pan', 'ggswitch', 'wzgg', 'logo', 'kfswitch', 'panswitch', 'bgswitch', 'dayimg', 'nightimg', 'siteurl', 'multi_domain', 'domain_list'];
-            $gg = isset($_POST['ggswitch']) ? 1 : 0;
-            $kf = isset($_POST['kfswitch']) ? 1 : 0;
-            $pan = isset($_POST['panswitch']) ? 1 : 0;
-            $bg = isset($_POST['bgswitch']) ? 1 : 0;
-            $multi_domain = isset($_POST['multi_domain']) ? 1 : 0;
-            
-            // 验证主域名格式
-            if(empty($_POST['siteurl'])) {
-                exit(json_encode(['code'=>0, 'msg'=>'主域名不能为空'], JSON_UNESCAPED_UNICODE));
-            }
-            
-            // 验证主域名格式
-            $siteurl = trim($_POST['siteurl']);
-            if(!preg_match('/^(([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(\:[0-9]{1,5})?$/', $siteurl)) {
-                exit(json_encode(['code'=>0, 'msg'=>'主域名格式错误:'.$siteurl."\n支持格式:\n1. 域名: example.com\n2. 域名+端口: example.com:8080\n3. IP: 192.168.1.1\n4. IP+端口: 192.168.1.1:8080"], JSON_UNESCAPED_UNICODE));
-            }
-            // 验证主域名端口
-            if(strpos($siteurl, ':') !== false) {
-                $port = explode(':', $siteurl)[1];
-                if($port < 1 || $port > 65535) {
-                    exit(json_encode(['code'=>0, 'msg'=>'端口号必须在1-65535之间:'.$siteurl], JSON_UNESCAPED_UNICODE));
+            try {
+                error_log("[" . date('Y-m-d H:i:s') . "] 开始处理updateset请求\n", 3, "../logs/error.log");
+                
+                // 验证必要参数
+                if(!isset($_POST['user_key']) || !isset($_POST['siteurl'])) {
+                    error_log("[" . date('Y-m-d H:i:s') . "] 缺少必要参数: user_key或siteurl\n", 3, "../logs/error.log");
+                    throw new Exception('缺少必要参数');
                 }
-            }
 
-            // 验证多域名格式 - 仅在多域名开关打开时验证
-            $domain_list = isset($_POST['domain_list']) ? $_POST['domain_list'] : '';
-            if($multi_domain == 1 && !empty($domain_list)) {
-                $domains = explode("\n", str_replace("\r", "", $domain_list));
-                foreach($domains as $domain) {
-                    $domain = trim($domain);
-                    if(!empty($domain)) {
-                        if(!preg_match('/^(([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(\:[0-9]{1,5})?$/', $domain)) {
-                            exit(json_encode(['code'=>0, 'msg'=>'域名/IP格式错误:'.$domain."\n支持格式:\n1. 域名: example.com\n2. 域名+端口: example.com:8080\n3. IP: 192.168.1.1\n4. IP+端口: 192.168.1.1:8080"], JSON_UNESCAPED_UNICODE));
+                // 记录接收到的继承配置
+                if(isset($_POST['inherit_config'])) {
+                    error_log("[" . date('Y-m-d H:i:s') . "] 接收到的inherit_config: " . $_POST['inherit_config'] . "\n", 3, "../logs/error.log");
+                }
+
+                // 准备更新数据
+                $update = [
+                    'hostname' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $_POST['user_key'])),
+                    'siteurl' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $_POST['siteurl'])),
+                    'img' => isset($_POST['logo']) ? addslashes($_POST['logo']) : '',
+                    'show_online_pay' => isset($_POST['show_online_pay']) ? 1 : 0,
+                    'show_kami_pay' => isset($_POST['show_kami_pay']) ? 1 : 0,
+                    'show_kami_reg' => isset($_POST['show_kami_reg']) ? 1 : 0,
+                    'show_user_search' => isset($_POST['show_user_search']) ? 1 : 0,
+                    'show_kami_query' => isset($_POST['show_kami_query']) ? 1 : 0,
+                    'show_change_pwd' => isset($_POST['show_change_pwd']) ? 1 : 0,
+                    'ggswitch' => isset($_POST['ggswitch']) ? 1 : 0,
+                    'kfswitch' => isset($_POST['kfswitch']) ? 1 : 0,
+                    'panswitch' => isset($_POST['panswitch']) ? 1 : 0,
+                    'bgswitch' => isset($_POST['bgswitch']) ? 1 : 0,
+                    'multi_domain' => isset($_POST['multi_domain']) ? 1 : 0,
+                    'inherit_enabled' => isset($_POST['inherit_enabled']) ? 1 : 0
+                ];
+
+                error_log("[" . date('Y-m-d H:i:s') . "] 基础更新数据准备完成\n", 3, "../logs/error.log");
+
+                // 处理可选字段
+                if(isset($_POST['wzgg'])) {
+                    $update['wzgg'] = addslashes($_POST['wzgg']);
+                }
+                if(isset($_POST['kf'])) {
+                    $update['kf'] = addslashes($_POST['kf']);
+                }
+                if(isset($_POST['pan'])) {
+                    $update['pan'] = addslashes($_POST['pan']);
+                }
+                if(isset($_POST['dayimg'])) {
+                    $update['dayimg'] = addslashes($_POST['dayimg']);
+                }
+                if(isset($_POST['nightimg'])) {
+                    $update['nightimg'] = addslashes($_POST['nightimg']);
+                }
+                if(isset($_POST['domain_list'])) {
+                    $update['domain_list'] = addslashes($_POST['domain_list']);
+                }
+                
+                // 处理继承配置
+                if(isset($_POST['inherit_config'])) {
+                    error_log("[" . date('Y-m-d H:i:s') . "] 开始处理继承配置\n", 3, "../logs/error.log");
+                    
+                    // 递归解码HTML实体直到没有更多实体可解码
+                    $inherit_config_str = $_POST['inherit_config'];
+                    $prev_str = '';
+                    while($inherit_config_str !== $prev_str) {
+                        $prev_str = $inherit_config_str;
+                        $inherit_config_str = html_entity_decode($inherit_config_str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    }
+                    
+                    error_log("[" . date('Y-m-d H:i:s') . "] 完全解码后的inherit_config: " . $inherit_config_str . "\n", 3, "../logs/error.log");
+                    
+                    $inherit_config = json_decode($inherit_config_str, true);
+                    if($inherit_config === null) {
+                        error_log("[" . date('Y-m-d H:i:s') . "] JSON解析失败: " . json_last_error_msg() . "\n", 3, "../logs/error.log");
+                        throw new Exception('继承配置格式错误: ' . json_last_error_msg());
+                    }
+                    
+                    error_log("[" . date('Y-m-d H:i:s') . "] 解析后的继承配置: " . print_r($inherit_config, true) . "\n", 3, "../logs/error.log");
+                    
+                    // 验证继承配置格式
+                    if(!isset($inherit_config['groups']) || !is_array($inherit_config['groups'])) {
+                        error_log("[" . date('Y-m-d H:i:s') . "] 继承配置缺少groups字段或格式错误\n", 3, "../logs/error.log");
+                        $inherit_config = ['groups' => []];
+                    }
+                    
+                    // 验证每个组的格式
+                    foreach($inherit_config['groups'] as $group) {
+                        error_log("[" . date('Y-m-d H:i:s') . "] 验证组配置: " . print_r($group, true) . "\n", 3, "../logs/error.log");
+                        
+                        if(!isset($group['id']) || !is_numeric($group['id'])) {
+                            error_log("[" . date('Y-m-d H:i:s') . "] 组ID格式错误\n", 3, "../logs/error.log");
+                            throw new Exception('继承组ID格式错误');
                         }
-                        if(strpos($domain, ':') !== false) {
-                            $port = explode(':', $domain)[1];
-                            if($port < 1 || $port > 65535) {
-                                exit(json_encode(['code'=>0, 'msg'=>'端口号必须在1-65535之间:'.$domain], JSON_UNESCAPED_UNICODE));
+                        if(!isset($group['main_apps']) || !is_array($group['main_apps'])) {
+                            error_log("[" . date('Y-m-d H:i:s') . "] 主应用配置格式错误\n", 3, "../logs/error.log");
+                            throw new Exception('主应用配置格式错误');
+                        }
+                        if(!isset($group['inherit_apps']) || !is_array($group['inherit_apps'])) {
+                            error_log("[" . date('Y-m-d H:i:s') . "] 继承应用配置格式错误\n", 3, "../logs/error.log");
+                            throw new Exception('继承应用配置格式错误');
+                        }
+                    }
+                    
+                    // 保存继承配置
+                    $update['inherit_groups'] = $inherit_config_str;
+                    error_log("[" . date('Y-m-d H:i:s') . "] 继承配置验证通过,准备保存\n", 3, "../logs/error.log");
+                } else {
+                    // 如果没有继承配置，设置默认值
+                    $update['inherit_groups'] = json_encode(['groups' => []]);
+                    error_log("[" . date('Y-m-d H:i:s') . "] 使用默认继承配置\n", 3, "../logs/error.log");
+                }
+
+                // 执行更新
+                $sql = "UPDATE sub_admin SET ";
+                foreach($update as $key => $value) {
+                    $sql .= "`$key`='$value',";
+                }
+                $sql = rtrim($sql, ',');
+                $sql .= " WHERE username='" . $DB->escape($subconf['username']) . "'";
+                
+                error_log("[" . date('Y-m-d H:i:s') . "] 执行SQL更新: " . $sql . "\n", 3, "../logs/error.log");
+                
+                $result = $DB->exe($sql);
+                if($result !== false) {
+                    error_log("[" . date('Y-m-d H:i:s') . "] 数据库更新成功\n", 3, "../logs/error.log");
+                    
+                    // 如果启用了继承功能，更新继承关系表
+                    if($update['inherit_enabled'] && isset($inherit_config)) {
+                        error_log("[" . date('Y-m-d H:i:s') . "] 开始更新继承关系表\n", 3, "../logs/error.log");
+                        
+                        // 删除该用户的所有旧继承关系
+                        $delete_sql = "DELETE g, r FROM app_inherit_groups g 
+                                     LEFT JOIN app_inherit_relations r ON g.id = r.group_id 
+                                     WHERE g.username = '" . $DB->escape($subconf['username']) . "'";
+                        error_log("[" . date('Y-m-d H:i:s') . "] 删除旧继承关系: " . $delete_sql . "\n", 3, "../logs/error.log");
+                        $DB->exe($delete_sql);
+                        
+                        // 添加新的继承关系
+                        foreach($inherit_config['groups'] as $group) {
+                            error_log("[" . date('Y-m-d H:i:s') . "] 处理组 " . $group['id'] . "\n", 3, "../logs/error.log");
+                            
+                            // 插入继承组
+                            $group_data = array(
+                                'group_name' => '继承组' . $group['id'],
+                                'username' => $subconf['username'],
+                                'enabled' => 1,
+                                'create_time' => date('Y-m-d H:i:s'),
+                                'update_time' => date('Y-m-d H:i:s')
+                            );
+                            
+                            $group_id = $DB->insert('app_inherit_groups', $group_data);
+                            error_log("[" . date('Y-m-d H:i:s') . "] 插入继承组,ID: " . $group_id . "\n", 3, "../logs/error.log");
+                            
+                            if($group_id) {
+                                // 插入继承关系
+                                foreach($group['main_apps'] as $main_app) {
+                                    foreach($group['inherit_apps'] as $inherit_app) {
+                                        if($main_app != $inherit_app) {  // 避免自我继承
+                                            $relation_data = array(
+                                                'group_id' => $group_id,
+                                                'main_appcode' => $DB->escape($main_app),
+                                                'inherit_appcode' => $DB->escape($inherit_app),
+                                                'create_time' => date('Y-m-d H:i:s')
+                                            );
+                                            $DB->insert('app_inherit_relations', $relation_data);
+                                            error_log("[" . date('Y-m-d H:i:s') . "] 插入继承关系: " . print_r($relation_data, true) . "\n", 3, "../logs/error.log");
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
-                }
-                // 清理空行并重新组合
-                $domain_list = implode("\n", array_filter(array_map('trim', $domains)));
-            }
-            
-            $flag = true;
-            foreach ($result as $post) {
-                if($post != 'ggswitch' && $post != 'kfswitch' && $post != 'panswitch' && 
-                   $post != 'bgswitch' && $post != 'wzgg' && $post != 'multi_domain' && 
-                   $post != 'domain_list') {
-                    $flag = isset($_POST[$post]);
-                    if(!$flag) break;
-                }
-            }
-            
-            if ($flag) {
-                $sql = "UPDATE sub_admin SET 
-                    hostname=\"" . addslashes($_POST["user_key"]) . "\", 
-                    kf=\"" . addslashes($_POST["kf"]) . "\", 
-                    pan=\"" . addslashes($_POST["pan"]) . "\", 
-                    img=\"" . addslashes($_POST["logo"]) . "\",
-                    siteurl=\"" . addslashes($_POST["siteurl"]) . "\",
-                    multi_domain='" . $multi_domain . "',
-                    domain_list='" . addslashes($domain_list) . "',
-                    ggswitch='" . $gg . "',
-                    kfswitch='" . $kf . "',
-                    panswitch='" . $pan . "',
-                    bgswitch='" . $bg . "',
-                    dayimg='" . addslashes($_POST["dayimg"]) . "',
-                    nightimg='" . addslashes($_POST["nightimg"]) . "'";
                     
-                $sql .= $gg == 0 ? "" : ",wzgg='" . trim(addslashes(str_replace(array("'"), array('"'), $_POST["wzgg"]))) . "'";
-                
-                // 添加功能开关的保存
-                $show_online_pay = isset($_POST["show_online_pay"]) ? 1 : 0;
-                $show_kami_pay = isset($_POST["show_kami_pay"]) ? 1 : 0;
-                $show_kami_reg = isset($_POST["show_kami_reg"]) ? 1 : 0;
-                $show_user_search = isset($_POST["show_user_search"]) ? 1 : 0;
-                $show_kami_query = isset($_POST["show_kami_query"]) ? 1 : 0;
-                $show_change_pwd = isset($_POST["show_change_pwd"]) ? 1 : 0;
-                
-                $sql .= ",show_online_pay='" . $show_online_pay . "'";
-                $sql .= ",show_kami_pay='" . $show_kami_pay . "'";
-                $sql .= ",show_kami_reg='" . $show_kami_reg . "'";
-                $sql .= ",show_user_search='" . $show_user_search . "'";
-                $sql .= ",show_kami_query='" . $show_kami_query . "'";
-                $sql .= ",show_change_pwd='" . $show_change_pwd . "'";
-                
-                $sql .= " WHERE username=\"" . addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $subconf['username'])) . "\" ";
-                
-                $result = $DB->exe($sql);
-                if ($result) {
-                    $code = [
-                        "code" => "1",
-                        "msg" => "保存成功"
-                    ];
-                    WriteLog("更新网站设置", "更新了网站设置", $subconf['username'], $DB);
-                } else {
-                    $code = [
-                        "code" => "0",
-                        "msg" => "更新失败"
-                    ];
-                }
+                    WriteLog("更新设置", "更新网站设置和继承应用配置", $subconf['username'], $DB);
+                    error_log("[" . date('Y-m-d H:i:s') . "] 更新完成\n", 3, "../logs/error.log");
+                    exit(json_encode(['code' => 1, 'msg' => '更新成功']));
             } else {
-                $code = [
-                    "code" => "0",
-                    "msg" => "参数错误"
-                ];
+                    error_log("[" . date('Y-m-d H:i:s') . "] 数据库更新失败: " . $DB->errMsg . "\n", 3, "../logs/error.log");
+                    throw new Exception('数据库更新失败');
+                }
+            } catch(Exception $e) {
+                error_log("[" . date('Y-m-d H:i:s') . "] 更新失败: " . $e->getMessage() . "\n", 3, "../logs/error.log");
+                exit(json_encode(['code' => -1, 'msg' => '更新失败：' . $e->getMessage()]));
             }
-            exit(json_encode($code, JSON_UNESCAPED_UNICODE));
             break;
     case "updatepwd":
         try {
@@ -2469,18 +2494,28 @@ switch ($act) {
 
     case 'getapps':  // 改为小写
         try {
+            // 获取应用列表
             $sql = "SELECT appcode, appname FROM application WHERE username='" . $DB->escape($subconf['username']) . "' ORDER BY appname ASC";
             $apps = $DB->select($sql);
             
+            if($apps === false) {
+                throw new Exception('数据库查询失败');
+            }
+            
+            // 确保返回数组而不是null
+            $apps = $apps ?: [];
+            
             exit(json_encode([
                 'code' => 1,
-                'msg' => '',
-                'data' => $apps ?: []
+                'msg' => '获取成功',
+                'data' => $apps
             ], JSON_UNESCAPED_UNICODE));
+            
         } catch (Exception $e) {
             exit(json_encode([
                 'code' => -1,
-                'msg' => '获取应用列表失败：' . $e->getMessage()
+                'msg' => '获取应用列表失败：' . $e->getMessage(),
+                'data' => []
             ], JSON_UNESCAPED_UNICODE));
         }
         break;
@@ -2938,6 +2973,101 @@ switch ($act) {
             exit(json_encode([
                 'code' => -1,
                 'msg' => "检查失败: " . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        break;
+
+    case 'getset':
+        // 从sub_admin表获取所有网站设置
+        $sql = "SELECT * FROM sub_admin WHERE username='" . $DB->escape($subconf['username']) . "' LIMIT 1";
+        $result = $DB->select($sql);
+        
+        if($result && isset($result[0])) {
+            $response = [
+                'code' => 1,
+                'msg' => '获取成功',
+                'data' => $result[0]  // 返回所有设置数据
+            ];
+        } else {
+            $response = [
+                'code' => -1,
+                'msg' => '获取失败'
+            ];
+        }
+        exit(json_encode($response, JSON_UNESCAPED_UNICODE));
+        break;
+
+    case 'setinherit':
+        try {
+            error_log("[" . date('Y-m-d H:i:s') . "] 开始处理setinherit请求\n", 3, "../logs/error.log");
+            
+            // 验证必要参数
+            if(!isset($_POST['inherit_config'])) {
+                throw new Exception('缺少继承配置参数');
+            }
+
+            // 记录接收到的继承配置
+            error_log("[" . date('Y-m-d H:i:s') . "] 接收到的inherit_config: " . $_POST['inherit_config'] . "\n", 3, "../logs/error.log");
+            
+            // 解析继承配置
+            $inherit_config_str = $_POST['inherit_config'];
+            $prev_str = '';
+            while($inherit_config_str !== $prev_str) {
+                $prev_str = $inherit_config_str;
+                $inherit_config_str = html_entity_decode($inherit_config_str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+            
+            error_log("[" . date('Y-m-d H:i:s') . "] 完全解码后的inherit_config: " . $inherit_config_str . "\n", 3, "../logs/error.log");
+            
+            $inherit_config = json_decode($inherit_config_str, true);
+            if($inherit_config === null) {
+                error_log("[" . date('Y-m-d H:i:s') . "] JSON解析失败: " . json_last_error_msg() . "\n", 3, "../logs/error.log");
+                throw new Exception('继承配置格式错误: ' . json_last_error_msg());
+            }
+            
+            // 验证继承配置格式
+            if(!isset($inherit_config['groups']) || !is_array($inherit_config['groups'])) {
+                error_log("[" . date('Y-m-d H:i:s') . "] 继承配置缺少groups字段或格式错误\n", 3, "../logs/error.log");
+                $inherit_config = ['groups' => []];
+            }
+            
+            // 验证每个组的格式
+            foreach($inherit_config['groups'] as $group) {
+                if(!isset($group['id']) || !is_numeric($group['id'])) {
+                    throw new Exception('继承组ID格式错误');
+                }
+                if(!isset($group['main_apps']) || !is_array($group['main_apps'])) {
+                    throw new Exception('主应用配置格式错误');
+                }
+                if(!isset($group['inherit_apps']) || !is_array($group['inherit_apps'])) {
+                    throw new Exception('继承应用配置格式错误');
+                }
+            }
+
+            // 更新继承配置
+            $sql = "UPDATE sub_admin SET 
+                    inherit_enabled = 1,
+                    inherit_groups = '" . $DB->escape($inherit_config_str) . "'
+                    WHERE username = '" . $DB->escape($subconf['username']) . "'";
+            
+            error_log("[" . date('Y-m-d H:i:s') . "] 执行SQL更新\n", 3, "../logs/error.log");
+            
+            $result = $DB->exe($sql);
+            if($result !== false) {
+                WriteLog("更新继承配置", "更新继承应用配置，组数：" . count($inherit_config['groups']), $subconf['username'], $DB);
+                exit(json_encode([
+                    'code' => 1,
+                    'msg' => '设置成功'
+                ], JSON_UNESCAPED_UNICODE));
+            } else {
+                throw new Exception('数据库更新失败');
+            }
+            
+        } catch(Exception $e) {
+            error_log("[" . date('Y-m-d H:i:s') . "] 设置继承配置失败: " . $e->getMessage() . "\n", 3, "../logs/error.log");
+            exit(json_encode([
+                'code' => -1,
+                'msg' => $e->getMessage()
             ], JSON_UNESCAPED_UNICODE));
         }
         break;

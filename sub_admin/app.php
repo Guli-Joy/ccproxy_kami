@@ -62,6 +62,7 @@ if (!($islogin == 1)) {
 	<div class="layui-btn-container">
 		<button class="layui-btn layui-btn-normal layui-btn-sm" lay-event="search"><i class="layui-icon layui-icon-search"></i><span>搜索</span></button>
 		<button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="New"><i class="layui-icon layui-icon-add-1"></i><span>新增</span></button>
+		<button class="layui-btn layui-btn-sm layui-btn-warm" lay-event="setInherit"><i class="layui-icon layui-icon-link"></i><span>设置继承</span></button>
 		<button class="layui-btn layui-btn-danger layui-btn-sm" lay-event="Del"><i class="layui-icon layui-icon-delete"></i><span>删除</span></button>
 	</div>
 </script>
@@ -212,10 +213,11 @@ if (!($islogin == 1)) {
 				case "Del":
 					Del(table, checkStatus);
 					break;
+				case "setInherit":
+					setInherit(checkStatus);
+					break;
 				case "edit":
-					// console.log(checkStatus,obj);
 					edit(checkStatus);
-
 					break;
 			};
 		});
@@ -628,6 +630,142 @@ if (!($islogin == 1)) {
 			});
 		});
 
+	}
+
+	function setInherit(checkStatus) {
+		if (checkStatus.data.length < 2) {
+			layer.msg("请至少选择2条记录", {icon: 3});
+			return;
+		}
+		
+		layui.use(['jquery', 'form'], function() {
+			var $ = layui.$,
+				form = layui.form;
+				
+			// 构建主应用选择下拉框HTML
+			var selectHtml = '<div class="layui-form" style="padding: 20px;">' +
+				'<div class="layui-form-item">' +
+				'<label class="layui-form-label">选择主应用</label>' +
+				'<div class="layui-input-block">' +
+				'<select name="main_app" lay-verify="required" lay-filter="main_app">';
+			
+			// 添加所有选中的应用作为选项
+			checkStatus.data.forEach(function(app) {
+				selectHtml += '<option value="' + app.appcode + '">' + app.appname + ' [' + app.appcode + ']</option>';
+			});
+			
+			selectHtml += '</select></div></div></div>';
+			
+			// 显示选择主应用的弹窗
+			layer.open({
+				type: 1,
+				title: '设置继承关系',
+				area: ['500px', '250px'],
+				content: selectHtml,
+				btn: ['确定', '取消'],
+				success: function() {
+					form.render('select');
+				},
+				yes: function(index) {
+					var mainApp = $('select[name=main_app]').val();
+					if (!mainApp) {
+						layer.msg('请选择主应用', {icon: 2});
+						return;
+					}
+					
+					// 构建主应用和继承应用数组
+					var mainApps = [mainApp];
+					var inheritApps = checkStatus.data
+						.map(app => app.appcode)
+						.filter(appcode => appcode !== mainApp);
+					
+					// 获取现有继承配置
+					$.ajax({
+						url: "ajax.php?act=getset",
+						type: "POST",
+						dataType: "json",
+						success: function(response) {
+							if(response.code == 1) {
+								var config = {groups: []};
+								
+								// 解析现有配置
+								if(response.data.inherit_config) {
+									try {
+										var decodedStr = response.data.inherit_config;
+										var prevStr = '';
+										while(decodedStr !== prevStr) {
+											prevStr = decodedStr;
+											decodedStr = $('<div/>').html(decodedStr).text();
+										}
+										config = JSON.parse(decodedStr);
+									} catch(e) {
+										console.error('解析继承配置失败:', e);
+									}
+								}
+								
+								// 确保groups是数组
+								if(!Array.isArray(config.groups)) {
+									config.groups = [];
+								}
+								
+								// 添加新的继承组
+								var newGroupId = 1;
+								if(config.groups.length > 0) {
+									newGroupId = Math.max(...config.groups.map(g => g.id)) + 1;
+								}
+								
+								config.groups.push({
+									id: newGroupId,
+									main_apps: mainApps,
+									inherit_apps: inheritApps
+								});
+								
+								// 获取主应用名称用于显示
+								var mainAppName = checkStatus.data.find(app => app.appcode === mainApp).appname;
+								
+								// 保存更新后的配置
+								layer.confirm("确定将 " + mainAppName + " [" + mainApp + "] 设为主应用，其他 " + inheritApps.length + " 个应用设为继承应用吗？", {
+									icon: 3
+								}, function() {
+									$.ajax({
+										url: "ajax.php?act=setinherit",
+										type: "POST",
+										dataType: "json",
+										data: {
+											inherit_config: JSON.stringify(config)
+										},
+										beforeSend: function() {
+											layer.msg("正在设置", {
+												icon: 16,
+												shade: 0.05,
+												time: false
+											});
+										},
+										success: function(data) {
+											if (data.code == 1) {
+												layer.msg(data.msg, {icon: 1});
+												layer.close(index); // 关闭选择弹窗
+												reload("user");
+											} else {
+												layer.msg(data.msg || "设置失败", {icon: 5});
+											}
+										},
+										error: function(xhr, status, error) {
+											layer.msg("设置失败: " + error, {icon: 5});
+										}
+									});
+								});
+							} else {
+								layer.msg(response.msg || "获取配置失败", {icon: 5});
+							}
+						},
+						error: function(xhr, status, error) {
+							layer.msg("获取配置失败: " + error, {icon: 5});
+						}
+					});
+				}
+			});
+		});
 	}
 </script>
 

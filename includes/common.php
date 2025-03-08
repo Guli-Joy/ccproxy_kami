@@ -101,18 +101,27 @@ echo '<!DOCTYPE html> <html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN"> <
 exit(0);
 }
 
-
-// //连接数据库
+// 连接数据库
 include_once SYSTEM_ROOT . 'dbhelp.php';
-$DB= new SpringMySQLi($dbconfig['host'], $dbconfig['user'], $dbconfig['pwd'], $dbconfig['dbname']);
-$sql = 'SELECT * FROM `sub_admin` ';
-$count = $DB->select($sql)==NULL ? array() :  $DB->select($sql) ;
-$installcheck=count($count)>0?true:false;
-if ($installcheck == false) {
-    @header('Content-Type: text/html; charset=UTF-8');
-    exit('<script>alert("检测到您的数据库并未安装我们系统，自动为您跳转安装界面!");window.location.href="../install";</script>');
+try {
+    $DB = new SpringMySQLi($dbconfig['host'], $dbconfig['user'], $dbconfig['pwd'], $dbconfig['dbname']);
+    error_log("数据库连接状态：成功");
+    
+    $sql = 'SELECT * FROM `sub_admin`';
+    $count = $DB->select($sql)==NULL ? array() : $DB->select($sql);
+    $installcheck = count($count)>0 ? true : false;
+    
+    if ($installcheck == false) {
+        error_log("数据库未安装");
+        @header('Content-Type: text/html; charset=UTF-8');
+        exit('<script>alert("检测到您的数据库并未安装我们系统，自动为您跳转安装界面!");window.location.href="../install";</script>');
+    }
+    
+    error_log("数据库检查完成：已安装");
+} catch (Exception $e) {
+    error_log("数据库操作失败：" . $e->getMessage());
+    die("数据库操作失败");
 }
-
 
 $password_hash='!@#%!s!0';
 include_once SYSTEM_ROOT . 'authcode.php';

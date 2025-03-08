@@ -18,23 +18,110 @@ $logger->debug('API Request', [
     'ip' => $clientip
 ]);
 
+function getMainApps($inherit_groups) {
+    if(empty($inherit_groups)) {
+        error_log("继承组配置为空");
+        return [];
+    }
+    
+    try {
+        // 递归解码HTML实体
+        $decoded_str = $inherit_groups;
+        $prev_str = '';
+        while($decoded_str !== $prev_str) {
+            $prev_str = $decoded_str;
+            $decoded_str = html_entity_decode($decoded_str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        
+        $config = json_decode($decoded_str, true);
+        if($config === null) {
+            error_log("JSON解析失败：" . json_last_error_msg());
+            return [];
+        }
+        
+        if(!isset($config['groups']) || !is_array($config['groups'])) {
+            error_log("继承组配置格式错误：没有groups数组");
+            return [];
+        }
+        
+        $mainApps = [];
+        foreach($config['groups'] as $group) {
+            if(isset($group['main_apps']) && is_array($group['main_apps'])) {
+                foreach($group['main_apps'] as $app) {
+                    if(!empty($app)) {
+                        $mainApps[] = $app;
+                    }
+                }
+            }
+        }
+        
+        $mainApps = array_unique($mainApps);
+        return $mainApps;
+    } catch(Exception $e) {
+        error_log("解析主应用列表失败: " . $e->getMessage());
+        error_log("错误堆栈: " . $e->getTraceAsString());
+        return [];
+    }
+}
+
 switch($act){
     case "gethostapp":
-    $application=$DB->select("select appcode,appname from application where username=\"".$subconf["username"]."\"");
-    if($application){
-        $code=[
-            "code"=>"1",
-            "msg"=>$application
-        ];
-    }
-    else{
-        $code=[
-            "code"=>"0",
-            "msg"=>"未知错误"
-        ];
-    }
-    exit(json_encode($code,JSON_UNESCAPED_UNICODE));
-    break;
+        try {
+            // 修改SQL查询，通过server_list表的state字段来判断应用是否可用
+            $sql = "SELECT DISTINCT a.appcode, a.appname 
+                   FROM application a 
+                   INNER JOIN server_list s ON a.serverip = s.ip 
+                   WHERE s.state = 1 
+                   AND a.username = '" . $DB->escape($subconf['username']) . "' 
+                   ORDER BY a.appname ASC";
+            
+            $apps = $DB->select($sql);
+            
+            if($apps && !empty($apps)) {
+                // 如果继承功能开启且有继承组配置，只返回主应用
+                if($subconf['inherit_enabled'] && !empty($subconf['inherit_groups'])) {
+                    $mainApps = getMainApps($subconf['inherit_groups']);
+                    
+                    if(!empty($mainApps)) {
+                        $filtered_apps = [];
+                        foreach($apps as $app) {
+                            if(in_array($app['appcode'], $mainApps)) {
+                                $filtered_apps[] = $app;
+                            }
+                        }
+                        $apps = $filtered_apps;
+                    }
+                }
+                
+                if(empty($apps)) {
+                    $json = [
+                        'code' => -1,
+                        'msg' => '没有可用的主应用'
+                    ];
+                } else {
+                    $json = [
+                        'code' => 1,
+                        'msg' => array_values($apps)
+                    ];
+                }
+            } else {
+                error_log("没有找到可用的应用");
+                $json = [
+                    'code' => -1,
+                    'msg' => '没有可用的应用，请先添加应用并确保对应服务器已启用'
+                ];
+            }
+        } catch(Exception $e) {
+            error_log("获取应用列表异常: " . $e->getMessage());
+            error_log("异常堆栈: " . $e->getTraceAsString());
+            $json = [
+                'code' => -1,
+                'msg' => '获取应用失败：系统错误'
+            ];
+        }
+        
+        exit(json_encode($json, JSON_UNESCAPED_UNICODE));
+        break;
 
     case "getpackages":
     $appcode = isset($_POST['appcode'])?daddslashes($_POST['appcode']):null;
@@ -340,6 +427,70 @@ switch($act){
                 'trace' => $e->getTraceAsString()
             ]);
             exit(json_encode(['code' => -1, 'msg' => '查询失败，请稍后重试']));
+        }
+        break;
+
+    case "getinheritapps":
+        try {
+            $appcode = isset($_POST['appcode']) ? $DB->escape($_POST['appcode']) : '';
+            if(empty($appcode)) {
+                exit(json_encode(['code' => -1, 'msg' => '应用代码不能为空']));
+            }
+
+            // 检查是否启用继承功能
+            if(!$subconf['inherit_enabled'] || empty($subconf['inherit_groups'])) {
+                exit(json_encode(['code' => 1, 'data' => []]));
+            }
+
+            // 获取继承应用列表
+            $mainApps = getMainApps($subconf['inherit_groups']);
+            if(!in_array($appcode, $mainApps)) {
+                exit(json_encode(['code' => 1, 'data' => []]));
+            }
+
+            // 解析继承组配置
+            $decoded_str = $subconf['inherit_groups'];
+            $prev_str = '';
+            while($decoded_str !== $prev_str) {
+                $prev_str = $decoded_str;
+                $decoded_str = html_entity_decode($decoded_str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+            
+            $config = json_decode($decoded_str, true);
+            if(!$config || !isset($config['groups']) || !is_array($config['groups'])) {
+                exit(json_encode(['code' => 1, 'data' => []]));
+            }
+
+            // 查找所有包含该主应用的组，并收集其继承应用
+            $inheritApps = [];
+            foreach($config['groups'] as $group) {
+                if(isset($group['main_apps']) && is_array($group['main_apps']) && 
+                   in_array($appcode, $group['main_apps']) && 
+                   isset($group['inherit_apps']) && is_array($group['inherit_apps'])) {
+                    $inheritApps = array_merge($inheritApps, $group['inherit_apps']);
+                }
+            }
+
+            // 去重
+            $inheritApps = array_unique($inheritApps);
+
+            // 验证继承应用是否存在且可用
+            $validApps = [];
+            foreach($inheritApps as $app) {
+                $sql = "SELECT a.appcode FROM application a 
+                       INNER JOIN server_list s ON a.serverip = s.ip 
+                       WHERE s.state = 1 AND a.appcode = '" . $DB->escape($app) . "' 
+                       AND a.username = '" . $DB->escape($subconf['username']) . "'";
+                $result = $DB->select($sql);
+                if($result && !empty($result)) {
+                    $validApps[] = $app;
+                }
+            }
+
+            exit(json_encode(['code' => 1, 'data' => $validApps]));
+        } catch(Exception $e) {
+            error_log("获取继承应用列表失败: " . $e->getMessage());
+            exit(json_encode(['code' => -1, 'msg' => '获取继承应用列表失败']));
         }
         break;
 

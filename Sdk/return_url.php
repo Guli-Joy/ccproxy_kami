@@ -23,7 +23,7 @@ require_once("../config.php");
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>支付结果 - 订单详情</title>
-        <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="../assets/css/fontawesome/all.min.css">
         <link rel="stylesheet" href="../assets/css/pay/return.css">
     </head>
     <body>
@@ -66,7 +66,32 @@ require_once("../config.php");
                     $stmt->close();
 
                     if ($order) {
-                        if ($order['status'] == 1) {
+                        // 检查订单状态并等待处理完成
+                        $maxAttempts = 10; // 最大尝试次数
+                        $attempts = 0;
+                        $orderProcessed = false;
+                        
+                        while ($attempts < $maxAttempts) {
+                            // 重新查询订单状态
+                            $stmt = $conn->prepare("SELECT status FROM orders WHERE order_no = ?");
+                            $stmt->bind_param("s", $out_trade_no);
+                            $stmt->execute();
+                            $statusResult = $stmt->get_result();
+                            $currentStatus = $statusResult->fetch_assoc();
+                            $stmt->close();
+                            
+                            if ($currentStatus['status'] == 1) {
+                                $orderProcessed = true;
+                                break;
+                            }
+                            
+                            $attempts++;
+                            if ($attempts < $maxAttempts) {
+                                usleep(200000); // 等待200毫秒后重试
+                            }
+                        }
+                        
+                        if ($orderProcessed) {
                             // 获取套餐应用信息
                             $stmt = $conn->prepare("SELECT pa.* FROM package_apps pa 
                                                   LEFT JOIN application a ON pa.appcode = a.appcode 
@@ -95,32 +120,32 @@ require_once("../config.php");
                             
                             // 转换时长为友好显示格式
                             $days = floatval($order['days']);
-                            $totalMinutes = round($days * 24 * 60); // 转换为分钟并四舍五入
+                            $totalMinutes = round($days * 24 * 60);
                             $durationDisplay = '';
                             
-                            if($totalMinutes >= 24 * 60) { // 1天或以上
+                            if($totalMinutes >= 24 * 60) {
                                 $remainingDays = floor($totalMinutes / (24 * 60));
                                 $totalMinutes %= (24 * 60);
                                 $durationDisplay .= $remainingDays . '天';
                                 
-                                if($totalMinutes >= 60) { // 还有小时
+                                if($totalMinutes >= 60) {
                                     $hours = floor($totalMinutes / 60);
                                     $totalMinutes %= 60;
                                     $durationDisplay .= $hours . '小时';
                                 }
                                 
-                                if($totalMinutes > 0) { // 还有分钟
+                                if($totalMinutes > 0) {
                                     $durationDisplay .= $totalMinutes . '分钟';
                                 }
-                            } elseif($totalMinutes >= 60) { // 1小时到24小时
+                            } elseif($totalMinutes >= 60) {
                                 $hours = floor($totalMinutes / 60);
                                 $totalMinutes %= 60;
                                 $durationDisplay = $hours . '小时';
                                 
-                                if($totalMinutes > 0) { // 还有分钟
+                                if($totalMinutes > 0) {
                                     $durationDisplay .= $totalMinutes . '分钟';
                                 }
-                            } else { // 不足1小时
+                            } else {
                                 $durationDisplay = $totalMinutes . '分钟';
                             }
                             
@@ -144,23 +169,6 @@ require_once("../config.php");
                                 }
                             }
 
-                            // 查询账号状态
-                            $ch = curl_init();
-                            $post_data = array(
-                                'user' => $order['account'],
-                                'appcode' => $order['appcode']
-                            );
-                            
-                            $api_url = dirname(dirname($_SERVER['PHP_SELF'])) . "/api/cpproxy.php?type=query";
-                            curl_setopt($ch, CURLOPT_URL, $api_url);
-                            curl_setopt($ch, CURLOPT_POST, 1);
-                            curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
-                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($ch, CURLOPT_FAILONERROR, true);
-                            
-                            $response = curl_exec($ch);
-                            curl_close($ch);
-                            
                             echo '<div class="status-header">';
                             echo '<div class="status-success"><i class="fas fa-check-circle status-icon"></i><br>支付成功</div>';
                             echo '</div>';
@@ -172,35 +180,29 @@ require_once("../config.php");
                             echo '<div class="info-item"><span class="info-label"><i class="fas fa-yen-sign"></i>支付金额</span><span class="info-value">￥'.$money.'</span></div>';
                             echo '</div>';
                             
-                            $query_result = json_decode($response, true);
-                            if ($query_result && $query_result['code'] == 1) {
-                                if (preg_match('/到期时间：([\d-: ]+)/', $query_result['msg'], $matches)) {
-                                    echo '<div class="expiry-time card">';
-                                    echo '<div class="title"><i class="fas fa-calendar-check"></i>账号到期时间</div>';
-                                    echo '<div class="value">'.$matches[1].'</div>';
-                                    echo '</div>';
-                                }
-                            }
                         } else {
+                            // 如果订单未处理完成，显示等待信息
                             echo '<div class="status-waiting card">';
                             echo '<div class="title"><i class="fas fa-spinner fa-spin"></i>订单处理中</div>';
-                            echo '<div class="refresh-tip"><i class="fas fa-sync-alt"></i>正在等待支付结果，页面将自动刷新</div>';
+                            echo '<div class="refresh-tip"><i class="fas fa-sync-alt"></i>正在处理您的订单，请稍候...</div>';
                             echo '</div>';
                             echo '<script>
                                 setTimeout(function() {
                                     window.location.reload();
-                                }, 2000); // 每2秒刷新一次
+                                }, 1000); // 1秒后刷新
                             </script>';
                         }
+                    } else {
+                        echo '<div class="status-header">';
+                        echo '<div class="status-failed"><i class="fas fa-times-circle status-icon"></i><br>订单不存在</div>';
+                        echo '</div>';
                     }
                 } catch (Exception $e) {
-                    error_log("支付回调处理错误: " . $e->getMessage());
                     echo '<div class="status-header">';
                     echo '<div class="status-failed"><i class="fas fa-times-circle status-icon"></i><br>处理失败</div>';
                     echo '</div>';
                     echo '<div class="error-message">订单处理出现错误，请联系客服</div>';
                 } finally {
-                    // 确保数据库连接被关闭
                     if(isset($conn)) {
                         $conn->close();
                     }
@@ -215,7 +217,7 @@ require_once("../config.php");
                 echo '<script>
                     setTimeout(function() {
                         window.location.reload();
-                    }, 2000); // 每2秒刷新一次
+                    }, 1000); // 1秒后刷新
                 </script>';
             }
         } else {
@@ -241,3 +243,21 @@ require_once("../config.php");
     color: #5cadff;
 }
 </style>
+
+<?php
+// CURL请求函数
+function curl_request($url, $post = null) {
+    $curl = curl_init();
+    curl_setopt($curl, CURLOPT_URL, $url);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+    
+    if($post) {
+        curl_setopt($curl, CURLOPT_POST, 1);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($post));
+    }
+    
+    $result = curl_exec($curl);
+    curl_close($curl);
+    return $result;
+}

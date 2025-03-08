@@ -69,7 +69,7 @@ try {
                     }
                     
                     // 获取套餐信息
-                    $stmt = $conn->prepare("SELECT days FROM packages WHERE id = ?");
+                    $stmt = $conn->prepare("SELECT * FROM packages WHERE id = ?");
                     $stmt->bind_param("i", $order['package_id']);
                     $stmt->execute();
                     $result = $stmt->get_result();
@@ -80,7 +80,7 @@ try {
                     }
                     
                     // 获取应用服务器信息
-                    $stmt = $conn->prepare("SELECT serverip FROM application WHERE appcode = ?");
+                    $stmt = $conn->prepare("SELECT * FROM application WHERE appcode = ?");
                     $stmt->bind_param("s", $order['appcode']);
                     $stmt->execute();
                     $result = $stmt->get_result();
@@ -91,7 +91,7 @@ try {
                     }
                     
                     // 获取服务器配置
-                    $stmt = $conn->prepare("SELECT ip,serveruser,password,cport FROM server_list WHERE ip = ?");
+                    $stmt = $conn->prepare("SELECT * FROM server_list WHERE ip = ?");
                     $stmt->bind_param("s", $app['serverip']);
                     $stmt->execute();
                     $result = $stmt->get_result();
@@ -101,7 +101,7 @@ try {
                         throw new Exception("服务器配置不存在");
                     }
                     
-                    // 处理CCProxy账号
+                    // 处理主应用账号
                     $proxyaddress = $server['ip'];
                     $admin_password = $server['password'];
                     $admin_port = $server['cport'];
@@ -121,7 +121,7 @@ try {
                         
                         // 创建新用户
                         $days = floatval($package['days']);
-                        $totalSeconds = round($days * 24 * 3600); // 转换为秒并四舍五入
+                        $totalSeconds = round($days * 24 * 3600);
                         $expire = date('Y-m-d H:i:s', strtotime("+{$totalSeconds} seconds"));
                         
                         $userdata = array(
@@ -134,12 +134,11 @@ try {
                             'bandwidthdown' => -1
                         );
                         
-                        $result = AddUser($proxyaddress, $admin_password, $admin_port, $userdata);
-                        if (!$result) {
+                        if (!AddUser($proxyaddress, $admin_password, $admin_port, $userdata)) {
                             throw new Exception("创建用户失败");
                         }
                         
-                    } elseif ($order['mode'] === 'renew') {
+                    } else {
                         if (!$userExists) {
                             throw new Exception("用户不存在");
                         }
@@ -166,45 +165,199 @@ try {
                         $newExpiry = date('Y-m-d H:i:s', $currentExpiry + ($package['days'] * 24 * 3600));
                         
                         // 更新用户
-                        $result = UserUpdate(
-                            $admin_password,
-                            $admin_port,
-                            $proxyaddress,
-                            $order['account'],
-                            '',
-                            $newExpiry,
-                            -1,
-                            -1,
-                            -1
-                        );
-                        
-                        if (!$result) {
+                        if (!UserUpdate($admin_password, $admin_port, $proxyaddress, $order['account'], '', $newExpiry, -1, -1, -1)) {
                             throw new Exception("更新用户失败");
                         }
-                    } else {
-                        throw new Exception("未知的订单类型");
                     }
                     
-                    // 提交事务
-                    $conn->commit();
-                    echo "success";
+                    // 获取子站配置并处理继承应用
+                    $stmt = $conn->prepare("SELECT * FROM sub_admin WHERE username = ?");
+                    $stmt->bind_param("s", $order['username']);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $subconf = $result->fetch_assoc();
                     
-                } else {
-                    echo "success"; // 订单已处理，返回成功
+                    // 检查是否启用继承功能
+                    if ($subconf && $subconf['inherit_enabled'] && !empty($subconf['inherit_groups'])) {
+                        // 解析继承组配置
+                        $decoded_str = $subconf['inherit_groups'];
+                        $prev_str = '';
+                        while ($decoded_str !== $prev_str) {
+                            $prev_str = $decoded_str;
+                            $decoded_str = html_entity_decode($decoded_str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                        }
+                        
+                        $config = json_decode($decoded_str, true);
+                        if ($config && isset($config['groups']) && is_array($config['groups'])) {
+                            // 查找所有包含该主应用的组
+                            $inheritApps = [];
+                            foreach ($config['groups'] as $group) {
+                                if (isset($group['main_apps']) && is_array($group['main_apps']) && 
+                                    in_array($order['appcode'], $group['main_apps']) && 
+                                    isset($group['inherit_apps']) && is_array($group['inherit_apps'])) {
+                                    $inheritApps = array_merge($inheritApps, $group['inherit_apps']);
+                                }
+                            }
+                            
+                            // 去重
+                            $inheritApps = array_unique($inheritApps);
+                            
+                            // 处理每个继承应用
+                            foreach ($inheritApps as $inheritApp) {
+                                try {
+                                    // 获取继承应用信息
+                                    $stmt = $conn->prepare("SELECT a.*, s.* FROM application a 
+                                                         INNER JOIN server_list s ON a.serverip = s.ip 
+                                                         WHERE s.state = 1 AND a.appcode = ? 
+                                                         AND a.username = ?");
+                                    $stmt->bind_param("ss", $inheritApp, $order['username']);
+                                    $stmt->execute();
+                                    $result = $stmt->get_result();
+                                    $inheritAppInfo = $result->fetch_assoc();
+                                    
+                                    if ($inheritAppInfo) {
+                                        // 处理继承应用账号
+                                        $inheritUsers = queryuserall($inheritAppInfo['password'], $inheritAppInfo['cport'], $inheritAppInfo['ip']);
+                                        if ($inheritUsers !== false) {
+                                            $inheritUserExists = !existsuser($order['account'], $inheritUsers);
+                                            
+                                            if ($order['mode'] === 'register') {
+                                                if (!$inheritUserExists) {
+                                                    // 创建继承应用用户
+                                                    $userdata = array(
+                                                        'user' => $order['account'],
+                                                        'pwd' => $order['password'],
+                                                        'expire' => $expire,
+                                                        'use_date' => date('Y-m-d H:i:s'),
+                                                        'connection' => -1,
+                                                        'bandwidthup' => -1,
+                                                        'bandwidthdown' => -1
+                                                    );
+                                                    
+                                                    if (!AddUser($inheritAppInfo['ip'], $inheritAppInfo['password'], $inheritAppInfo['cport'], $userdata)) {
+                                                        error_log("继承应用 {$inheritApp} 创建用户失败");
+                                                    }
+                                                }
+                                            } else {
+                                                if ($inheritUserExists) {
+                                                    // 获取继承应用用户信息
+                                                    $inheritUserInfo = null;
+                                                    foreach ($inheritUsers as $user) {
+                                                        if ($user['user'] === $order['account']) {
+                                                            $inheritUserInfo = $user;
+                                                            break;
+                                                        }
+                                                    }
+                                                    
+                                                    if ($inheritUserInfo) {
+                                                        // 计算新的到期时间
+                                                        $currentExpiry = !empty($inheritUserInfo['disabletime']) ? strtotime($inheritUserInfo['disabletime']) : time();
+                                                        if ($currentExpiry < time()) {
+                                                            $currentExpiry = time();
+                                                        }
+                                                        
+                                                        $newExpiry = date('Y-m-d H:i:s', $currentExpiry + ($package['days'] * 24 * 3600));
+                                                        
+                                                        // 更新继承应用用户
+                                                        if (!UserUpdate($inheritAppInfo['password'], $inheritAppInfo['cport'], $inheritAppInfo['ip'], 
+                                                                      $order['account'], '', $newExpiry, -1, -1, -1)) {
+                                                            error_log("继承应用 {$inheritApp} 续费失败");
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } catch (Exception $e) {
+                                    error_log("处理继承应用 {$inheritApp} 失败: " . $e->getMessage());
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                    
+                    $conn->commit();
+                    exit('success');
                 }
+                
+                echo "success";
                 
             } catch (Exception $e) {
                 $conn->rollback();
-                die($e->getMessage());
+                error_log("订单处理失败: " . $e->getMessage());
+                exit('fail');
             } finally {
                 $conn->close();
             }
         } else {
-            die('trade status error');
+            exit('trade status error');
         }
     } else {
         die('sign error');
     }
 } catch (Exception $e) {
     die($e->getMessage());
+}
+
+// 注册账号函数
+function register_account($appcode, $account, $password, $duration) {
+    global $conn;
+    
+    $stmt = $conn->prepare("SELECT * FROM application WHERE appcode=?");
+    $stmt->bind_param("s", $appcode);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $app = $result->fetch_assoc();
+    if(!$app) {
+        return ['code' => -1, 'msg' => '应用不存在'];
+    }
+    
+    $url = "http://{$app['serverip']}/api/cpproxy.php?type=insert";
+    $data = [
+        'user' => $account,
+        'pwd' => $password,
+        'duration' => $duration
+    ];
+    
+    $curl = curl_init();
+    curl_setopt($curl, CURLOPT_URL, $url);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+    curl_setopt($curl, CURLOPT_POST, 1);
+    curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
+    
+    $result = curl_exec($curl);
+    curl_close($curl);
+    return json_decode($result, true);
+}
+
+// 续费账号函数
+function renew_account($appcode, $account, $duration) {
+    global $conn;
+    
+    $stmt = $conn->prepare("SELECT * FROM application WHERE appcode=?");
+    $stmt->bind_param("s", $appcode);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $app = $result->fetch_assoc();
+    if(!$app) {
+        return ['code' => -1, 'msg' => '应用不存在'];
+    }
+    
+    $url = "http://{$app['serverip']}/api/cpproxy.php?type=renew";
+    $data = [
+        'user' => $account,
+        'duration' => $duration
+    ];
+    
+    $curl = curl_init();
+    curl_setopt($curl, CURLOPT_URL, $url);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+    curl_setopt($curl, CURLOPT_POST, 1);
+    curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
+    
+    $result = curl_exec($curl);
+    curl_close($curl);
+    return json_decode($result, true);
 }

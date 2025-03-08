@@ -270,6 +270,8 @@ CREATE TABLE `sub_admin` (
   `show_change_pwd` int(1) NOT NULL DEFAULT '1' COMMENT '修改密码功能开关',
   `multi_domain` int(1) NOT NULL DEFAULT '0' COMMENT '多域名开关 0=关闭 1=开启',
   `domain_list` text COMMENT '多域名列表',
+  `inherit_enabled` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否启用应用继承',
+  `inherit_groups` text NOT NULL COMMENT '继承组配置JSON',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `username` (`username`) USING BTREE,
   KEY `id` (`id`) USING BTREE
@@ -282,8 +284,8 @@ CREATE TABLE `sub_admin` (
 
 LOCK TABLES `sub_admin` WRITE;
 /*!40000 ALTER TABLE `sub_admin` DISABLE KEYS */;
-INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`, `show_kami_query`, `show_change_pwd`, `multi_domain`, `domain_list`) 
-VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','192.168.31.134:8882',1,'','测试公告公告公告测试公告','','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1,1,1,0,'');
+INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`, `show_kami_query`, `show_change_pwd`, `multi_domain`, `domain_list`, `inherit_enabled`, `inherit_groups`) 
+VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','192.168.31.134:8882',1,'','测试公告公告公告测试公告','','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1,1,1,0,'',0,'');
 /*!40000 ALTER TABLE `sub_admin` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -329,3 +331,65 @@ CREATE TABLE `package_apps` (
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2024-12-03 14:54:49
+
+--
+-- Table structure for table `app_inherit_groups`
+--
+
+DROP TABLE IF EXISTS `app_inherit_groups`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `app_inherit_groups` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `group_name` varchar(64) NOT NULL COMMENT '继承组名称',
+  `username` varchar(32) NOT NULL COMMENT '所属用户',
+  `enabled` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否启用(0:禁用,1:启用)',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='应用继承组表';
+
+--
+-- Table structure for table `app_inherit_relations`
+--
+
+DROP TABLE IF EXISTS `app_inherit_relations`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `app_inherit_relations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `group_id` int(11) NOT NULL COMMENT '继承组ID',
+  `main_appcode` varchar(32) NOT NULL COMMENT '主应用代码',
+  `inherit_appcode` varchar(32) NOT NULL COMMENT '继承应用代码',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `group_id` (`group_id`),
+  KEY `main_appcode` (`main_appcode`),
+  KEY `inherit_appcode` (`inherit_appcode`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='应用继承关系表';
+
+--
+-- Table structure for table `app_inherit_logs`
+--
+
+DROP TABLE IF EXISTS `app_inherit_logs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `app_inherit_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `group_id` int(11) NOT NULL COMMENT '继承组ID',
+  `main_appcode` varchar(32) NOT NULL COMMENT '主应用代码',
+  `inherit_appcode` varchar(32) NOT NULL COMMENT '继承应用代码',
+  `action_type` varchar(20) NOT NULL COMMENT '操作类型(register:注册,renew:续费)',
+  `action_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+  `account` varchar(64) NOT NULL COMMENT '操作账号',
+  `duration` decimal(10,2) DEFAULT NULL COMMENT '续费时长(天)',
+  `status` tinyint(1) NOT NULL DEFAULT '1' COMMENT '状态(0:失败,1:成功)',
+  `error_msg` varchar(255) DEFAULT NULL COMMENT '错误信息',
+  PRIMARY KEY (`id`),
+  KEY `group_id` (`group_id`),
+  KEY `main_appcode` (`main_appcode`),
+  KEY `inherit_appcode` (`inherit_appcode`),
+  KEY `action_time` (`action_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='应用继承操作日志表';

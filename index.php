@@ -391,7 +391,7 @@ try {
                 <div class="layui-tab-content" style="height: auto;">
                     <?php if($subconf['show_online_pay'] == 1) { ?>
                     <div class="layui-tab-item layui-show">
-                        <div class="layui-form">
+                        <form class="layui-form">
                             <div class="layui-form-item" style="margin-bottom: 20px;">
                                 <div class="layui-input-block">
                                     <input type="radio" name="mode" value="renew" title="续费模式" lay-filter="mode">
@@ -412,10 +412,10 @@ try {
                             </div>
                             <div id="register-mode-inputs" style="display: none; margin-bottom: 20px;">
                                 <div class="layui-input-block">
-                                    <input type="text" name="account" id="register-account" class="layui-input inputs" placeholder="请输入账号" lay-verify="required" />
+                                    <input type="text" name="account" id="register-account" class="layui-input inputs" placeholder="请输入账号" lay-verify="required" autocomplete="username" />
                                 </div>
                                 <div class="layui-input-block" style="margin-top: 15px;">
-                                    <input type="password" name="password" id="register-password" class="layui-input inputs" placeholder="请输入密码" lay-verify="required" />
+                                    <input type="password" name="password" id="register-password" class="layui-input inputs" placeholder="请输入密码" lay-verify="required" autocomplete="new-password" />
                                 </div>
                             </div>
                             <div class="layui-form-item" style="margin-bottom: 20px;">
@@ -430,7 +430,7 @@ try {
                                     <button id="online-pay-submit" type="button" class="layui-btn layui-btn-normal">支付</button>
                                 </div>
                             </div>
-                        </div>
+                        </form>
                     </div>
                     <?php } ?>
                     <?php if($subconf['show_kami_pay'] == 1) { ?>
@@ -498,7 +498,7 @@ try {
                     <?php } ?>
                     <?php if($subconf['show_change_pwd'] == 1) { ?>
                     <div class="layui-tab-item<?php echo ($subconf['show_online_pay'] != 1 && $subconf['show_kami_pay'] != 1 && $subconf['show_kami_reg'] != 1 && $subconf['show_user_search'] != 1 && $subconf['show_kami_query'] != 1 ? ' layui-show' : ''); ?>">
-                        <div class="layui-form">
+                        <form class="layui-form">
                             <div class="layui-form-item">
                                 <div class="layui-input-block">
                                     <select id="change-pwd-app" name="app" lay-filter="app" lay-verify="required">
@@ -507,21 +507,21 @@ try {
                                 </div>
                             </div>
                             <div class="layui-input-block">
-                                <input type="text" name="account" id="change-pwd-account" class="layui-input inputs" placeholder="请输入账号" lay-verify="required" />
+                                <input type="text" name="account" id="change-pwd-account" class="layui-input inputs" placeholder="请输入账号" lay-verify="required" autocomplete="username" />
                             </div>
                             <div class="layui-input-block">
-                                <input type="password" name="old_password" id="change-pwd-old" class="layui-input inputs" placeholder="请输入原密码" lay-verify="required" />
+                                <input type="password" name="old_password" id="change-pwd-old" class="layui-input inputs" placeholder="请输入原密码" lay-verify="required" autocomplete="current-password" />
                             </div>
                             <div class="layui-input-block">
-                                <input type="password" name="new_password" id="change-pwd-new" class="layui-input inputs" placeholder="请输入新密码" lay-verify="required" />
+                                <input type="password" name="new_password" id="change-pwd-new" class="layui-input inputs" placeholder="请输入新密码" lay-verify="required" autocomplete="new-password" />
                             </div>
                             <div class="layui-input-block">
-                                <input type="password" name="confirm_password" id="change-pwd-confirm" class="layui-input inputs" placeholder="请确认新密码" lay-verify="required" />
+                                <input type="password" name="confirm_password" id="change-pwd-confirm" class="layui-input inputs" placeholder="请确认新密码" lay-verify="required" autocomplete="new-password" />
                             </div>
                             <div class="layui-input-block layui-btn-xs submit">
                                 <button id="change-pwd-btn" type="button" class="layui-btn layui-btn-normal">修改密码</button>
                             </div>
-                        </div>
+                        </form>
                     </div>
                     <?php } ?>
                 </div>
@@ -616,7 +616,7 @@ try {
                                         '</option>';
                                     $("#online-pay-package").append(item);
                                 }
-                                form.render('select');
+                                form.render();
                             } else {
                                 layer.msg("获取套餐失败：" + res.msg, {
                                     icon: 5
@@ -812,9 +812,6 @@ try {
                                                 'token': '<?php echo $_SESSION["payment_token"]; ?>'
                                             };
 
-                                            // 打印参数用于调试
-                                            console.log('Payment parameters:', params);
-
                                             // 创建支付表单
                                             var form = $('<form action="Sdk/epayapi.php" method="POST"></form>');
                                             
@@ -855,25 +852,50 @@ try {
                     dataType: "json",
                     timeout: 30000,
                     success: function(data) {
-                        if (data.code == "1") {
+                        if (data.code == "1" && Array.isArray(data.msg)) {
                             // 更新所有应用选择下拉框
                             var appSelects = $("#sel, #online-pay-app, #change-pwd-app");
                             appSelects.each(function() {
-                                for (var key in data.msg) {
-                                    var json = data.msg[key],
-                                        appcode = json.appcode,
-                                        appname = json.appname;
-                                    var item = '<option value="' + appcode + '">' + appname + '</option>';
-                                    $(this).append(item);
-                                }
+                                var $select = $(this);
+                                
+                                $select.empty(); // 清空现有选项
+                                $select.append('<option value="">请选择应用</option>'); // 添加默认选项
+                                
+                                // 添加应用选项
+                                data.msg.forEach(function(app) {
+                                    if(app && app.appcode && app.appname) {
+                                        var item = '<option value="' + app.appcode + '">' + app.appname + '</option>';
+                                        $select.append(item);
+                                    }
+                                });
                             });
 
                             // 重新渲染所有表单元素
-                            form.render();
+                            form.render('select');
+                        } else {
+                            // 如果没有应用，也要清空并添加提示选项
+                            var appSelects = $("#sel, #online-pay-app, #change-pwd-app");
+                            appSelects.each(function() {
+                                $(this).empty().append('<option value="">暂无可用应用</option>');
+                            });
+                            form.render('select');
+                            
+                            layer.msg(data.msg || "获取应用失败", {
+                                icon: 5
+                            });
                         }
                     },
-                    error: function(data) {
-                        layer.msg("获取应用失败", {
+                    error: function(xhr, status, error) {
+                        error_log("获取应用列表请求失败: " + error);
+                        
+                        // 请求失败时也要清空并添加提示选项
+                        var appSelects = $("#sel, #online-pay-app, #change-pwd-app");
+                        appSelects.each(function() {
+                            $(this).empty().append('<option value="">获取应用失败</option>');
+                        });
+                        form.render('select');
+                        
+                        layer.msg("获取应用失败，请刷新重试", {
                             icon: 5
                         });
                     }
@@ -962,23 +984,14 @@ try {
             });
 
             function checkUsername(obj) {
-                // console.log(obj)
-                //正则表达式
                 var reg = new RegExp("^[A-Za-z0-9]+$");
-                //获取输入框中的值
-                // var username = document.getElementById("username").value.trim();
-                // //判断输入框中有内容
                 if (!reg.test(obj)) {
                     return true;
-                    // Qmsg.info("请输入数字和英文！")
-                    //输入非法字符，清空输入框
-                    //$("#username").val("");
                 } else {
                     return false;
                 }
-
             }
-            console.log($(".layui-edge"));
+
             $("#registed").click(function() {
                 var user = $("#reg-user").val().trim();
                 var pwd = $("#reg-pwd").val().trim();
@@ -1297,7 +1310,7 @@ try {
                         $(".kami-info").html('');
                         // 清空输入框，避免错误信息被重复提交
                         $("#query-kami").val('');
-                        console.error("卡密查询错误:", status, error);
+                        error_log("卡密查询错误: " + error);
                     }
                 });
             });
@@ -1343,7 +1356,12 @@ try {
                     return Qmsg.warning("新密码只能包含数字、字母和下划线");
                 }
 
-                // 发送修改密码请求
+                // 显示加载层
+                var loadIndex = layer.load(1, {
+                    shade: [0.1, '#fff']
+                });
+
+                // 先修改主应用密码
                 $.ajax({
                     url: "api/cpproxy.php?type=changepwd",
                     type: "POST",
@@ -1354,46 +1372,138 @@ try {
                         'old_pwd': oldPassword,
                         'new_pwd': newPassword
                     },
-                    timeout: 30000,
-                    beforeSend: function() {
-                        $("#change-pwd-btn").prop("disabled", true);
-                        layer.msg("正在修改密码", {
-                            icon: 16,
-                            shade: 0.05,
-                            time: false
-                        });
-                    },
-                    success: function(data) {
-                        layer.closeAll();
-                        if (data.code == 1) {
+                    success: function(res) {
+                        if(res.code == 1) {
+                            // 主应用密码修改成功后，检查是否需要修改继承应用密码
+                            $.ajax({
+                                url: "api/api.php?act=getInheritApps",
+                                type: "POST",
+                                dataType: "json",
+                                data: {
+                                    'appcode': app
+                                },
+                                success: function(inheritRes) {
+                                    if(inheritRes.code == 1 && Array.isArray(inheritRes.data) && inheritRes.data.length > 0) {
+                                        var inheritErrors = [];
+                                        var completedCount = 0;
+                                        
+                                        // 定义检查完成状态的函数
+                                        function checkCompletion() {
+                                            if(completedCount === inheritRes.data.length) {
+                                                layer.close(loadIndex);
+                                                
+                                                if(inheritErrors.length > 0) {
+                                                    layer.msg("主应用密码修改成功，但部分继承应用密码修改失败", {
+                                                        icon: 0,
+                                                        time: 2000
+                                                    });
+                                                } else {
+                                                    layer.msg("密码修改成功", {
+                                                        icon: 1,
+                                                        time: 2000
+                                                    });
+                                                }
+                                                // 清空输入框
+                                                $("#change-pwd-old").val("");
+                                                $("#change-pwd-new").val("");
+                                                $("#change-pwd-confirm").val("");
+                                            }
+                                        }
+                                        
+                                        // 修改每个继承应用的密码
+                                        inheritRes.data.forEach(function(inheritApp) {
+                                            // 先检查账号是否存在
+                                            $.ajax({
+                                                url: "api/cpproxy.php?type=query",
+                                                type: "POST",
+                                                dataType: "json",
+                                                data: {
+                                                    'appcode': inheritApp,
+                                                    'user': account
+                                                },
+                                                success: function(queryRes) {
+                                                    // 修改账号存在的判断逻辑
+                                                    if(queryRes.code == 1 && !queryRes.msg.includes('账号不存在')) {
+                                                        $.ajax({
+                                                            url: "api/cpproxy.php?type=changepwd",
+                                                            type: "POST",
+                                                            dataType: "json",
+                                                            data: {
+                                                                'appcode': inheritApp,
+                                                                'user': account,
+                                                                'old_pwd': oldPassword,
+                                                                'new_pwd': newPassword
+                                                            },
+                                                            success: function(pwdRes) {
+                                                                completedCount++;
+                                                                if(pwdRes.code !== 1) {
+                                                                    error_log("继承应用密码修改失败: " + inheritApp + " - " + pwdRes.msg);
+                                                                    inheritErrors.push(inheritApp);
+                                                                }
+                                                                checkCompletion();
+                                                            },
+                                                            error: function(xhr, status, error) {
+                                                                error_log("继承应用密码修改请求失败: " + inheritApp + " - " + error);
+                                                                completedCount++;
+                                                                inheritErrors.push(inheritApp);
+                                                                checkCompletion();
+                                                            }
+                                                        });
+                                                    } else {
+                                                        error_log("继承应用账号不存在: " + inheritApp);
+                                                        completedCount++;
+                                                        inheritErrors.push(inheritApp);
+                                                        checkCompletion();
+                                                    }
+                                                },
+                                                error: function(xhr, status, error) {
+                                                    error_log("继承应用账号查询失败: " + inheritApp + " - " + error);
+                                                    completedCount++;
+                                                    inheritErrors.push(inheritApp);
+                                                    checkCompletion();
+                                                }
+                                            });
+                                        });
+                                    } else {
+                                        layer.close(loadIndex);
                             layer.msg("密码修改成功", {
-                                icon: 1
+                                            icon: 1,
+                                            time: 2000
                             });
                             // 清空输入框
                             $("#change-pwd-old").val("");
                             $("#change-pwd-new").val("");
                             $("#change-pwd-confirm").val("");
-                            Qmsg.success("密码修改成功");
-                        } else {
-                            layer.msg(data.msg || "密码修改失败", {
-                                icon: 5
+                                    }
+                                },
+                                error: function(xhr, status, error) {
+                                    error_log("获取继承应用列表失败: " + error);
+                                    layer.close(loadIndex);
+                                    layer.msg("获取继承应用失败，仅主应用密码修改成功", {
+                                        icon: 0,
+                                        time: 2000
+                                    });
+                                }
                             });
-                            Qmsg.error(data.msg || "密码修改失败");
+                        } else {
+                            layer.close(loadIndex);
+                            layer.msg(res.msg || "密码修改失败", {
+                                icon: 5,
+                                time: 2000
+                            });
                         }
-                        $("#change-pwd-btn").prop("disabled", false);
                     },
                     error: function() {
-                        layer.closeAll();
+                        layer.close(loadIndex);
                         layer.msg("修改密码失败，请稍后重试", {
-                            icon: 2
+                            icon: 2,
+                            time: 2000
                         });
-                        $("#change-pwd-btn").prop("disabled", false);
                     }
                 });
             });
 
             var isModal = <?php echo (empty($conf['wzgg']) || $conf['ggswitch'] != 1) ? 'false' : 'true'; ?>;
-            console.log(!$.cookie('op'), isModal)
             if (!$.cookie('op') && isModal == true) {
                 var slider = document.createElement("div");
                 slider.innerHTML = '<?php echo $conf['wzgg']; ?>';
@@ -1403,7 +1513,6 @@ try {
                     button: "好的",
                     content: slider,
                 });
-                // console.log($('#myModal').modal({keyboard: true}))
                 var cookietime = new Date();
                 cookietime.setTime(cookietime.getTime() + (10 * 60 * 1000));
                 $.cookie('op', false, {
