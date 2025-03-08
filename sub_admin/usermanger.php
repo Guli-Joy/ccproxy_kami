@@ -810,7 +810,7 @@ include("foot.php");
 					title: "新增用户",
 					area: ["400px", "400px"],
 					maxmin: false,
-					content: "newuser.php?v=20201111001&preserve_case=1"
+					content: "newuser.php?v=20201111001&preserve_case=1&inherit=1"
 				});
 			}
 

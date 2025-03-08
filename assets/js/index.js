@@ -43,6 +43,9 @@ layui.define(["element", "layer"], function (exports) {
 		iframe.setAttribute("frameborder", "0");
 		iframe.setAttribute("src", src);
 		iframe.setAttribute("data-id", this.urls.length);
+		iframe.className = 'layui-tab-iframe';
+		iframe.style.width = "100%";
+		iframe.style.height = "100%";
 		return iframe.outerHTML;
 	};
 
@@ -50,8 +53,33 @@ layui.define(["element", "layer"], function (exports) {
 		return (this.urls.indexOf(url) !== -1)
 	};
 
+	Tab.prototype.getIframe = function(url) {
+		return $('.layui-tab-content').find('iframe[src="' + url + '"]');
+	};
+
 	Tab.prototype.add = function (title, url) {
-		if (this.is(url)) return false;
+		if (this.is(url)) {
+			var $iframe = this.getIframe(url);
+			if($iframe.length > 0) {
+				try {
+					// 先尝试使用原生reload
+					if($iframe[0].contentWindow) {
+						$iframe[0].contentWindow.location.reload();
+					} else {
+						// 如果无法访问contentWindow，则重新设置src
+						var currentSrc = $iframe.attr('src');
+						$iframe.attr('src', 'about:blank').attr('src', currentSrc);
+					}
+				} catch(e) {
+					console.warn('Failed to reload iframe:', e);
+					// 回退方案：重新设置src
+					var currentSrc = $iframe.attr('src');
+					$iframe.attr('src', 'about:blank').attr('src', currentSrc);
+				}
+			}
+			this.change(url);
+			return false;
+		}
 		this.urls.push(url);
 		element.tabAdd(this.el, {
 			title: title,
@@ -59,10 +87,40 @@ layui.define(["element", "layer"], function (exports) {
 			id: url
 		});
 		this.change(url);
+
+		// 绑定新iframe的加载事件
+		var $newIframe = this.getIframe(url);
+		if($newIframe.length > 0) {
+			$newIframe.on('load', function() {
+				if(url === 'usermanger.php') {
+					try {
+						var win = this.contentWindow;
+						if(win && win.layui) {
+							// 确保layui加载完成后再刷新表格
+							win.layui.use(['table'], function() {
+								if(typeof win.reload === 'function') {
+									win.reload('server_list');
+								}
+							});
+						}
+					} catch(e) {
+						console.warn('Failed to initialize user manager:', e);
+					}
+				}
+			});
+		}
 	};
 
 	Tab.prototype.change = function (url) {
 		element.tabChange(this.el, url);
+		var $iframe = this.getIframe(url);
+		if($iframe.length > 0) {
+			// 触发自定义事件
+			$(document).trigger('tab.changed', {
+				url: url,
+				iframe: $iframe[0]
+			});
+		}
 	};
 
 	Tab.prototype.delete = function (url) {
@@ -87,8 +145,53 @@ layui.define(["element", "layer"], function (exports) {
 		var tabs = new Tab("tabs"),
 			navItems = [];
 
+		// 监听标签切换事件
+		$(document).on('tab.changed', function(e, data) {
+			if(!data || !data.iframe) return;
+			
+			var $iframe = $(data.iframe);
+			var url = data.url;
+			
+			if(url === 'usermanger.php') {
+				try {
+					var win = $iframe[0].contentWindow;
+					if(win && win.layui) {
+						win.layui.use(['table'], function() {
+							if(typeof win.reload === 'function') {
+								setTimeout(function() {
+									win.reload('server_list');
+								}, 100);
+							}
+						});
+					}
+				} catch(e) {
+					console.warn('Failed to reload user manager:', e);
+				}
+			}
+		});
+
+		// 监听全局iframe加载完成事件
+		$(document).on('iframe.loaded', function(e) {
+			var iframe = e.target;
+			var url = $(iframe).attr('src');
+			
+			if(url === 'usermanger.php') {
+				try {
+					var win = iframe.contentWindow;
+					if(win && win.layui) {
+						win.layui.use(['table'], function() {
+							if(typeof win.reload === 'function') {
+								win.reload('server_list');
+							}
+						});
+					}
+				} catch(e) {
+					console.warn('Failed to initialize user manager:', e);
+				}
+			}
+		});
+
 		$("#Nav a").on("click", function (event) {
-			// console.log(event);
 			event.preventDefault();
 			var $this = $(this),
 				url = $this.attr("href"),

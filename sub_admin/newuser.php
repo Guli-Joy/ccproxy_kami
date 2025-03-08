@@ -94,6 +94,16 @@ if (!($islogin == 1)) {
 		</div>
 	</div>
 
+	<div class="layui-form-item" style="display:none;">
+		<label class="layui-form-label" title="继承">
+			继承
+		</label>
+		<div class="layui-input-block">
+			<input type="checkbox" name="inherit" value="1" title="启用继承" lay-skin="primary">
+			<div class="layui-form-mid layui-word-aux">启用后将同时为继承组中的应用创建账号</div>
+		</div>
+	</div>
+
 
 
 	<!-- <div class="layui-form-item">
@@ -213,6 +223,40 @@ if (!($islogin == 1)) {
 							elem.append(item);
 						}
 						form.render("select");
+						
+						// 监听应用选择变化
+						form.on('select(state)', function(data) {
+							// 获取继承配置
+							$.ajax({
+								url: "ajax.php?act=getset",
+								type: "POST",
+								dataType: "json",
+								success: function(res) {
+									if(res.code == "1" && res.data.inherit_enabled == "1") {
+										var inherit_groups = JSON.parse(res.data.inherit_groups);
+										var isMainApp = false;
+										
+										// 检查选中的应用是否为主应用
+										if(inherit_groups && inherit_groups.groups) {
+											inherit_groups.groups.forEach(function(group) {
+												if(group.main_apps && group.main_apps.includes(data.value)) {
+													isMainApp = true;
+												}
+											});
+										}
+										
+										// 如果是主应用，显示继承选项
+										if(isMainApp) {
+											$("[name=inherit]").closest('.layui-form-item').show();
+										} else {
+											$("[name=inherit]").prop('checked', false);
+											$("[name=inherit]").closest('.layui-form-item').hide();
+										}
+										form.render();
+									}
+								}
+							});
+						});
 					}
 				},
 				error: function(data) {

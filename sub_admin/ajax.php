@@ -2064,27 +2064,128 @@ switch ($act) {
         }
         break;
     case "adduser":
-        $user_data = $_POST["userdata"];
-        if (isset($user_data) && is_array($user_data)) {
-            // 保持用户名原始大小写
-            $user_data['user'] = trim($user_data['user']); // 只去除空格，不转换大小写
+        if (!isset($_POST['userdata'])) {
+            $code = [
+                "code" => "-1",
+                "msg" => "参数错误"
+            ];
+            exit(json_encode($code, JSON_UNESCAPED_UNICODE));
+        }
+        $userdata = $_POST['userdata'];
+        
+        // 获取应用信息
+        $app_info = $DB->selectRow("SELECT * FROM application WHERE appcode='" . addslashes($userdata['app']) . "'");
+        if(!$app_info) {
+            $code = [
+                "code" => "-1",
+                "msg" => "应用不存在"
+            ];
+            exit(json_encode($code, JSON_UNESCAPED_UNICODE));
+        }
+
+        // 获取服务器信息
+        $server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . addslashes($app_info['serverip']) . "'");
+        if(!$server) {
+            $code = [
+                "code" => "-1", 
+                "msg" => "服务器不存在"
+            ];
+            exit(json_encode($code, JSON_UNESCAPED_UNICODE));
+        }
+
+        // 处理到期时间
+        $expire_time = '';
+        if($userdata['expire'] == -1) {
+            $expire_time = $userdata['use_date'] . " 23:59:59";
+        } else {
+            $expire_time = date('Y-m-d H:i:s', strtotime('+' . $userdata['expire'] . ' day'));
+        }
+
+        // 准备要添加的用户数据
+        $apps_to_add = array($app_info);
+
+        // 如果启用了继承且是主应用
+        if(isset($userdata['inherit']) && $userdata['inherit'] == '1') {
+            // 获取继承配置
+            $inherit_config = $DB->selectRow("SELECT inherit_enabled, inherit_groups FROM sub_admin WHERE username='" . $DB->escape($subconf['username']) . "'");
             
-            $app = $user_data["app"];
-            $ip = $DB->select("select serverip from application where appcode='$app'")[0];
-            $server = $DB->selectRow("select ip,serveruser,password,cport from server_list where ip='" . $ip['serverip'] . "'");
-            $code = AddUser($server["ip"], $server["password"], $server["cport"], $user_data);
-            $logContent = sprintf(
-                "添加用户：%s，应用：%s，服务器：%s", 
-                $user_data['user'], // 使用原始用户名记录日志
-                $app,
-                $server["ip"]
+            if($inherit_config && $inherit_config['inherit_enabled']) {
+                // 解码继承组配置
+                $inherit_groups = json_decode($inherit_config['inherit_groups'], true);
+                if($inherit_groups && isset($inherit_groups['groups'])) {
+                    foreach($inherit_groups['groups'] as $group) {
+                        // 检查当前应用是否为主应用
+                        if(in_array($userdata['app'], $group['main_apps'])) {
+                            // 获取该组下所有继承应用的信息
+                            if(!empty($group['inherit_apps'])) {
+                                $inherit_apps_str = "'" . implode("','", array_map(function($app) use ($DB) {
+                                    return $DB->escape($app);
+                                }, $group['inherit_apps'])) . "'";
+                                
+                                $inherit_apps = $DB->select("SELECT * FROM application WHERE appcode IN ($inherit_apps_str)");
+                                if($inherit_apps) {
+                                    $apps_to_add = array_merge($apps_to_add, $inherit_apps);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 开始添加用户
+        $success_count = 0;
+        $failed_apps = array();
+
+        foreach($apps_to_add as $app) {
+            // 获取对应服务器信息
+            $app_server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . addslashes($app['serverip']) . "'");
+            if(!$app_server) {
+                $failed_apps[] = $app['appname'] . "(服务器不存在)";
+                continue;
+            }
+
+            // 调用添加用户函数
+            $result = AddUser(
+                $app_server["ip"],
+                $app_server["password"],
+                $app_server["cport"],
+                array(
+                    'user' => $userdata['user'],
+                    'pwd' => $userdata['pwd'],
+                    'expire' => $expire_time,
+                    'connection' => '-1',
+                    'bandwidthup' => '-1',
+                    'bandwidthdown' => '-1'
+                )
             );
-            WriteLog("添加用户", $logContent, $subconf['username'], $DB);
+
+            if($result && isset($result['code']) && $result['code'] == "1") {
+                $success_count++;
+            } else {
+                $failed_apps[] = $app['appname'] . (isset($result['msg']) ? "(" . $result['msg'] . ")" : "");
+            }
+        }
+
+        // 返回结果
+        if($success_count == count($apps_to_add)) {
+            $code = [
+                "code" => "1",
+                "msg" => "添加成功"
+            ];
+            WriteLog("添加用户", "添加了用户: " . $userdata['user'], $subconf['username'], $DB);
+        } else if($success_count > 0) {
+            $code = [
+                "code" => "1",
+                "msg" => "部分添加成功，失败的应用：" . implode(", ", $failed_apps)
+            ];
+            WriteLog("添加用户", "部分添加成功，用户: " . $userdata['user'] . "，失败应用：" . implode(", ", $failed_apps), $subconf['username'], $DB);
         } else {
             $code = [
                 "code" => "-1",
-                "msg" => "添加失败参数为空或者有误!",
+                "msg" => "添加失败: " . implode(", ", $failed_apps)
             ];
+            WriteLog("添加用户", "添加失败，用户: " . $userdata['user'] . "，原因：" . implode(", ", $failed_apps), $subconf['username'], $DB);
         }
         exit(json_encode($code, JSON_UNESCAPED_UNICODE));
         break;
