@@ -19,7 +19,7 @@
 ## 💰 赞助支持
 
 <div align="center">
-  <img src="WXzsm.png" alt="微信赞赏码" width="300">
+  <img src="https://raw.githubusercontent.com/Guli-Joy/ccproxy_kami/master/assets/img/WXzsm.png" alt="微信赞赏码" width="300">
   <p><i>如果觉得这个项目对您有帮助，欢迎扫码赞助支持！</i></p>
 </div>
 
