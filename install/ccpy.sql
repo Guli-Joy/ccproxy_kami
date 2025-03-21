@@ -245,23 +245,23 @@ CREATE TABLE `sub_admin` (
   `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'ID',
   `username` varchar(20) NOT NULL COMMENT '用户名',
   `password` varchar(32) NOT NULL COMMENT '密码',
-  `hostname` varchar(20) NOT NULL COMMENT '网站标题',
-  `cookies` varchar(255) NOT NULL COMMENT ' 登录会话',
+  `hostname` varchar(255) NOT NULL COMMENT '网站标题',
+  `cookies` varchar(255) NOT NULL COMMENT '登录会话',
   `found_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `over_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '到期时间',
   `siteurl` varchar(255) NOT NULL COMMENT '主域名',
   `state` tinyint(1) NOT NULL DEFAULT '1' COMMENT '站点违规',
-  `pan` varchar(255) NOT NULL COMMENT '网盘',
-  `wzgg` text NOT NULL COMMENT '网站公告',
-  `kf` varchar(255) NOT NULL COMMENT '客服',
-  `img` varchar(255) NOT NULL COMMENT '图片',
-  `ggswitch` int(1) NOT NULL COMMENT '公告开关',
-  `kfswitch` int(1) NOT NULL DEFAULT '1' COMMENT '客服开关',
-  `panswitch` int(1) NOT NULL DEFAULT '1' COMMENT '网盘开关',
-  `qx` int(1) NOT NULL COMMENT '权限',
+  `pan` varchar(255) NOT NULL COMMENT '网盘链接',
+  `wzgg` MEDIUMTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '网站公告',
+  `kf` varchar(255) NOT NULL COMMENT '客服链接',
+  `img` varchar(255) NOT NULL COMMENT 'LOGO图片',
+  `ggswitch` int(1) NOT NULL DEFAULT '1' COMMENT '公告开关 0=关闭 1=开启',
+  `kfswitch` int(1) NOT NULL DEFAULT '1' COMMENT '客服开关 0=关闭 1=开启',
+  `panswitch` int(1) NOT NULL DEFAULT '1' COMMENT '网盘开关 0=关闭 1=开启',
+  `qx` int(1) NOT NULL DEFAULT '1' COMMENT '权限等级',
   `dayimg` varchar(255) NOT NULL DEFAULT '' COMMENT '日间背景图片',
   `nightimg` varchar(255) NOT NULL DEFAULT '' COMMENT '夜间背景图片',
-  `bgswitch` int(1) NOT NULL DEFAULT '1' COMMENT '背景切换开关',
+  `bgswitch` int(1) NOT NULL DEFAULT '1' COMMENT '背景切换开关 0=关闭 1=开启',
   `show_online_pay` int(1) NOT NULL DEFAULT '1' COMMENT '在线续费/注册开关',
   `show_kami_pay` int(1) NOT NULL DEFAULT '1' COMMENT '卡密充值开关',
   `show_kami_reg` int(1) NOT NULL DEFAULT '1' COMMENT '卡密注册开关',
@@ -271,10 +271,14 @@ CREATE TABLE `sub_admin` (
   `multi_domain` int(1) NOT NULL DEFAULT '0' COMMENT '多域名开关 0=关闭 1=开启',
   `domain_list` text COMMENT '多域名列表',
   `inherit_enabled` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否启用应用继承',
+  `show_inherit_apps` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否在前端显示继承应用',
   `inherit_groups` text NOT NULL COMMENT '继承组配置JSON',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `username` (`username`) USING BTREE,
-  KEY `id` (`id`) USING BTREE
+  KEY `id` (`id`) USING BTREE,
+  KEY `hostname_index` (`hostname`),
+  KEY `siteurl_index` (`siteurl`)
 ) ENGINE=MyISAM AUTO_INCREMENT=61 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='普通管理员';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -284,8 +288,8 @@ CREATE TABLE `sub_admin` (
 
 LOCK TABLES `sub_admin` WRITE;
 /*!40000 ALTER TABLE `sub_admin` DISABLE KEYS */;
-INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`, `show_kami_query`, `show_change_pwd`, `multi_domain`, `domain_list`, `inherit_enabled`, `inherit_groups`) 
-VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','192.168.31.134:8882',1,'','测试公告公告公告测试公告','','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1,1,1,0,'',0,'');
+INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`, `show_kami_query`, `show_change_pwd`, `multi_domain`, `domain_list`, `inherit_enabled`, `show_inherit_apps`, `inherit_groups`) 
+VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','192.168.31.134:8882',1,'','# 🌟 欢迎使用故离端口系统\n\n## 🎉 系统说明\n\n### 🚀 主要功能\n- ✨ 支持在线支付\n- 🔒 账号管理系统\n- 🎨 界面美观大方\n- 🔄 稳定性强\n\n### 📝 使用说明\n1. 支持多种注册方式\n2. 灵活的续费选项\n\n> 温馨提示：请遵守使用规则\n\n### 📞 联系方式\n- 客服QQ：请点击客服按钮\n- 问题反馈：请联系客服\n\n---\n*感谢您的使用！*','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1,1,1,0,1,'');
 /*!40000 ALTER TABLE `sub_admin` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -393,3 +397,28 @@ CREATE TABLE `app_inherit_logs` (
   KEY `inherit_appcode` (`inherit_appcode`),
   KEY `action_time` (`action_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='应用继承操作日志表';
+
+--
+-- Table structure for table `db_version`
+--
+
+DROP TABLE IF EXISTS `db_version`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `db_version` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `version` varchar(20) NOT NULL COMMENT '版本号',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `description` text COMMENT '更新说明',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据库版本信息';
+
+--
+-- Dumping data for table `db_version`
+--
+
+LOCK TABLES `db_version` WRITE;
+/*!40000 ALTER TABLE `db_version` DISABLE KEYS */;
+INSERT INTO `db_version` (`version`, `description`) VALUES ('1.5.2.2', '增加Markdown公告支持，优化数据库结构');
+/*!40000 ALTER TABLE `db_version` ENABLE KEYS */;
+UNLOCK TABLES;

@@ -64,6 +64,67 @@ function getMainApps($inherit_groups) {
     }
 }
 
+function gethostapp() {
+    global $DB, $subconf;
+    
+    $apps = [];
+    
+    // 获取所有应用
+    $sql = "SELECT appcode, appname FROM application WHERE username='" . $DB->escape($subconf['username']) . "'";
+    $result = $DB->select($sql);
+    if($result) {
+        $apps = array_merge($apps, $result);
+    }
+    
+    // 如果启用了继承功能且允许显示继承应用
+    if($subconf['inherit_enabled'] == 1 && $subconf['show_inherit_apps'] == 1) {
+        // 获取继承组配置
+        $inherit_config = null;
+        if(!empty($subconf['inherit_groups'])) {
+            $decoded_str = $subconf['inherit_groups'];
+            $prev_str = '';
+            while($decoded_str !== $prev_str) {
+                $prev_str = $decoded_str;
+                $decoded_str = html_entity_decode($decoded_str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+            $inherit_config = json_decode($decoded_str, true);
+        }
+
+        if($inherit_config && isset($inherit_config['groups'])) {
+            foreach($inherit_config['groups'] as $group) {
+                if(isset($group['inherit_apps']) && is_array($group['inherit_apps'])) {
+                    foreach($group['inherit_apps'] as $inherit_app) {
+                        // 获取继承应用信息
+                        $sql = "SELECT appcode, appname FROM application WHERE appcode='" . $DB->escape($inherit_app) . "'";
+                        $result = $DB->select($sql);
+                        if($result && isset($result[0])) {
+                            // 检查是否已经在列表中
+                            $exists = false;
+                            foreach($apps as $app) {
+                                if($app['appcode'] == $result[0]['appcode']) {
+                                    $exists = true;
+                                    break;
+                                }
+                            }
+                            if(!$exists) {
+                                // 添加标记以区分继承应用
+                                $result[0]['appname'] .= ' [继承]';
+                                $apps[] = $result[0];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if(count($apps) > 0) {
+        return ['code' => 1, 'msg' => $apps];
+    } else {
+        return ['code' => -1, 'msg' => '暂无应用'];
+    }
+}
+
 switch($act){
     case "gethostapp":
         try {
@@ -78,25 +139,37 @@ switch($act){
             $apps = $DB->select($sql);
             
             if($apps && !empty($apps)) {
-                // 如果继承功能开启且有继承组配置，只返回主应用
+                // 如果继承功能开启
                 if($subconf['inherit_enabled'] && !empty($subconf['inherit_groups'])) {
                     $mainApps = getMainApps($subconf['inherit_groups']);
                     
                     if(!empty($mainApps)) {
-                        $filtered_apps = [];
-                        foreach($apps as $app) {
-                            if(in_array($app['appcode'], $mainApps)) {
-                                $filtered_apps[] = $app;
+                        // 如果不显示继承应用，只返回主应用
+                        if($subconf['show_inherit_apps'] != 1) {
+                            $filtered_apps = [];
+                            foreach($apps as $app) {
+                                if(in_array($app['appcode'], $mainApps)) {
+                                    $filtered_apps[] = $app;
+                                }
+                            }
+                            $apps = $filtered_apps;
+                        } else {
+                            // 如果显示继承应用，标记主应用和继承应用
+                            foreach($apps as &$app) {
+                                if(in_array($app['appcode'], $mainApps)) {
+                                    $app['appname'] .= ' [主应用]';
+                                } else {
+                                    $app['appname'] .= ' [继承]';
+                                }
                             }
                         }
-                        $apps = $filtered_apps;
                     }
                 }
                 
                 if(empty($apps)) {
                     $json = [
                         'code' => -1,
-                        'msg' => '没有可用的主应用'
+                        'msg' => '没有可用的应用'
                     ];
                 } else {
                     $json = [

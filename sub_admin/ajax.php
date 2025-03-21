@@ -2232,24 +2232,16 @@ switch ($act) {
         break;
         case "updateset":
             try {
-                error_log("[" . date('Y-m-d H:i:s') . "] 开始处理updateset请求\n", 3, "../logs/error.log");
-                
                 // 验证必要参数
                 if(!isset($_POST['user_key']) || !isset($_POST['siteurl'])) {
-                    error_log("[" . date('Y-m-d H:i:s') . "] 缺少必要参数: user_key或siteurl\n", 3, "../logs/error.log");
                     throw new Exception('缺少必要参数');
                 }
 
-                // 记录接收到的继承配置
-                if(isset($_POST['inherit_config'])) {
-                    error_log("[" . date('Y-m-d H:i:s') . "] 接收到的inherit_config: " . $_POST['inherit_config'] . "\n", 3, "../logs/error.log");
-                }
-
-                // 准备更新数据
-                $update = [
-                    'hostname' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $_POST['user_key'])),
-                    'siteurl' => addslashes(str_replace(array("<", ">", "/"), array("&lt;", "&gt;", ""), $_POST['siteurl'])),
-                    'img' => isset($_POST['logo']) ? addslashes($_POST['logo']) : '',
+                // 基础数据准备
+                $update = array(
+                    'hostname' => $_POST['user_key'],
+                    'siteurl' => $_POST['siteurl'],
+                    'img' => isset($_POST['img']) ? $_POST['img'] : '',
                     'show_online_pay' => isset($_POST['show_online_pay']) ? 1 : 0,
                     'show_kami_pay' => isset($_POST['show_kami_pay']) ? 1 : 0,
                     'show_kami_reg' => isset($_POST['show_kami_reg']) ? 1 : 0,
@@ -2261,157 +2253,36 @@ switch ($act) {
                     'panswitch' => isset($_POST['panswitch']) ? 1 : 0,
                     'bgswitch' => isset($_POST['bgswitch']) ? 1 : 0,
                     'multi_domain' => isset($_POST['multi_domain']) ? 1 : 0,
-                    'inherit_enabled' => isset($_POST['inherit_enabled']) ? 1 : 0
-                ];
+                    'inherit_enabled' => isset($_POST['inherit_enabled']) ? 1 : 0,
+                    'show_inherit_apps' => isset($_POST['show_inherit_apps']) ? 1 : 0,
+                    'wzgg' => isset($_POST['wzgg']) ? $_POST['wzgg'] : '',
+                    'kf' => isset($_POST['kf']) ? $_POST['kf'] : '',
+                    'pan' => isset($_POST['pan']) ? $_POST['pan'] : '',
+                    'dayimg' => isset($_POST['dayimg']) ? $_POST['dayimg'] : '',
+                    'nightimg' => isset($_POST['nightimg']) ? $_POST['nightimg'] : '',
+                    'domain_list' => isset($_POST['domain_list']) ? $_POST['domain_list'] : '',
+                    'inherit_groups' => isset($_POST['inherit_config']) ? $_POST['inherit_config'] : '{"groups":[]}'
+                );
 
-                error_log("[" . date('Y-m-d H:i:s') . "] 基础更新数据准备完成\n", 3, "../logs/error.log");
+                // 更新数据
+                $where = "username='" . $DB->escape($subconf['username']) . "'";
+                $result = $DB->update('sub_admin', $update, $where);
 
-                // 处理可选字段
-                if(isset($_POST['wzgg'])) {
-                    $update['wzgg'] = addslashes($_POST['wzgg']);
-                }
-                if(isset($_POST['kf'])) {
-                    $update['kf'] = addslashes($_POST['kf']);
-                }
-                if(isset($_POST['pan'])) {
-                    $update['pan'] = addslashes($_POST['pan']);
-                }
-                if(isset($_POST['dayimg'])) {
-                    $update['dayimg'] = addslashes($_POST['dayimg']);
-                }
-                if(isset($_POST['nightimg'])) {
-                    $update['nightimg'] = addslashes($_POST['nightimg']);
-                }
-                if(isset($_POST['domain_list'])) {
-                    $update['domain_list'] = addslashes($_POST['domain_list']);
-                }
-                
-                // 处理继承配置
-                if(isset($_POST['inherit_config'])) {
-                    error_log("[" . date('Y-m-d H:i:s') . "] 开始处理继承配置\n", 3, "../logs/error.log");
-                    
-                    // 递归解码HTML实体直到没有更多实体可解码
-                    $inherit_config_str = $_POST['inherit_config'];
-                    $prev_str = '';
-                    while($inherit_config_str !== $prev_str) {
-                        $prev_str = $inherit_config_str;
-                        $inherit_config_str = html_entity_decode($inherit_config_str, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                    }
-                    
-                    error_log("[" . date('Y-m-d H:i:s') . "] 完全解码后的inherit_config: " . $inherit_config_str . "\n", 3, "../logs/error.log");
-                    
-                    $inherit_config = json_decode($inherit_config_str, true);
-                    if($inherit_config === null) {
-                        error_log("[" . date('Y-m-d H:i:s') . "] JSON解析失败: " . json_last_error_msg() . "\n", 3, "../logs/error.log");
-                        throw new Exception('继承配置格式错误: ' . json_last_error_msg());
-                    }
-                    
-                    error_log("[" . date('Y-m-d H:i:s') . "] 解析后的继承配置: " . print_r($inherit_config, true) . "\n", 3, "../logs/error.log");
-                    
-                    // 验证继承配置格式
-                    if(!isset($inherit_config['groups']) || !is_array($inherit_config['groups'])) {
-                        error_log("[" . date('Y-m-d H:i:s') . "] 继承配置缺少groups字段或格式错误\n", 3, "../logs/error.log");
-                        $inherit_config = ['groups' => []];
-                    }
-                    
-                    // 验证每个组的格式
-                    foreach($inherit_config['groups'] as $group) {
-                        error_log("[" . date('Y-m-d H:i:s') . "] 验证组配置: " . print_r($group, true) . "\n", 3, "../logs/error.log");
-                        
-                        if(!isset($group['id']) || !is_numeric($group['id'])) {
-                            error_log("[" . date('Y-m-d H:i:s') . "] 组ID格式错误\n", 3, "../logs/error.log");
-                            throw new Exception('继承组ID格式错误');
-                        }
-                        if(!isset($group['main_apps']) || !is_array($group['main_apps'])) {
-                            error_log("[" . date('Y-m-d H:i:s') . "] 主应用配置格式错误\n", 3, "../logs/error.log");
-                            throw new Exception('主应用配置格式错误');
-                        }
-                        if(!isset($group['inherit_apps']) || !is_array($group['inherit_apps'])) {
-                            error_log("[" . date('Y-m-d H:i:s') . "] 继承应用配置格式错误\n", 3, "../logs/error.log");
-                            throw new Exception('继承应用配置格式错误');
-                        }
-                    }
-                    
-                    // 保存继承配置
-                    $update['inherit_groups'] = $inherit_config_str;
-                    error_log("[" . date('Y-m-d H:i:s') . "] 继承配置验证通过,准备保存\n", 3, "../logs/error.log");
-                } else {
-                    // 如果没有继承配置，设置默认值
-                    $update['inherit_groups'] = json_encode(['groups' => []]);
-                    error_log("[" . date('Y-m-d H:i:s') . "] 使用默认继承配置\n", 3, "../logs/error.log");
-                }
-
-                // 执行更新
-                $sql = "UPDATE sub_admin SET ";
-                foreach($update as $key => $value) {
-                    $sql .= "`$key`='$value',";
-                }
-                $sql = rtrim($sql, ',');
-                $sql .= " WHERE username='" . $DB->escape($subconf['username']) . "'";
-                
-                error_log("[" . date('Y-m-d H:i:s') . "] 执行SQL更新: " . $sql . "\n", 3, "../logs/error.log");
-                
-                $result = $DB->exe($sql);
                 if($result !== false) {
-                    error_log("[" . date('Y-m-d H:i:s') . "] 数据库更新成功\n", 3, "../logs/error.log");
-                    
-                    // 如果启用了继承功能，更新继承关系表
-                    if($update['inherit_enabled'] && isset($inherit_config)) {
-                        error_log("[" . date('Y-m-d H:i:s') . "] 开始更新继承关系表\n", 3, "../logs/error.log");
-                        
-                        // 删除该用户的所有旧继承关系
-                        $delete_sql = "DELETE g, r FROM app_inherit_groups g 
-                                     LEFT JOIN app_inherit_relations r ON g.id = r.group_id 
-                                     WHERE g.username = '" . $DB->escape($subconf['username']) . "'";
-                        error_log("[" . date('Y-m-d H:i:s') . "] 删除旧继承关系: " . $delete_sql . "\n", 3, "../logs/error.log");
-                        $DB->exe($delete_sql);
-                        
-                        // 添加新的继承关系
-                        foreach($inherit_config['groups'] as $group) {
-                            error_log("[" . date('Y-m-d H:i:s') . "] 处理组 " . $group['id'] . "\n", 3, "../logs/error.log");
-                            
-                            // 插入继承组
-                            $group_data = array(
-                                'group_name' => '继承组' . $group['id'],
-                                'username' => $subconf['username'],
-                                'enabled' => 1,
-                                'create_time' => date('Y-m-d H:i:s'),
-                                'update_time' => date('Y-m-d H:i:s')
-                            );
-                            
-                            $group_id = $DB->insert('app_inherit_groups', $group_data);
-                            error_log("[" . date('Y-m-d H:i:s') . "] 插入继承组,ID: " . $group_id . "\n", 3, "../logs/error.log");
-                            
-                            if($group_id) {
-                                // 插入继承关系
-                                foreach($group['main_apps'] as $main_app) {
-                                    foreach($group['inherit_apps'] as $inherit_app) {
-                                        if($main_app != $inherit_app) {  // 避免自我继承
-                                            $relation_data = array(
-                                                'group_id' => $group_id,
-                                                'main_appcode' => $DB->escape($main_app),
-                                                'inherit_appcode' => $DB->escape($inherit_app),
-                                                'create_time' => date('Y-m-d H:i:s')
-                                            );
-                                            $DB->insert('app_inherit_relations', $relation_data);
-                                            error_log("[" . date('Y-m-d H:i:s') . "] 插入继承关系: " . print_r($relation_data, true) . "\n", 3, "../logs/error.log");
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    WriteLog("更新设置", "更新网站设置和继承应用配置", $subconf['username'], $DB);
-                    error_log("[" . date('Y-m-d H:i:s') . "] 更新完成\n", 3, "../logs/error.log");
-                    exit(json_encode(['code' => 1, 'msg' => '更新成功']));
-            } else {
-                    error_log("[" . date('Y-m-d H:i:s') . "] 数据库更新失败: " . $DB->errMsg . "\n", 3, "../logs/error.log");
+                    WriteLog("更新设置", "更新了网站设置", $subconf['username'], $DB);
+                    exit(json_encode([
+                        'code' => 1,
+                        'msg' => '保存成功'
+                    ], JSON_UNESCAPED_UNICODE));
+                } else {
                     throw new Exception('数据库更新失败');
                 }
+
             } catch(Exception $e) {
-                error_log("[" . date('Y-m-d H:i:s') . "] 更新失败: " . $e->getMessage() . "\n", 3, "../logs/error.log");
-                exit(json_encode(['code' => -1, 'msg' => '更新失败：' . $e->getMessage()]));
+                exit(json_encode([
+                    'code' => -1,
+                    'msg' => $e->getMessage()
+                ], JSON_UNESCAPED_UNICODE));
             }
             break;
     case "updatepwd":

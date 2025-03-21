@@ -31,305 +31,136 @@ try {
     <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <link rel="stylesheet" type="text/css" href="./assets/Message/css/message.css" />
     <link rel="stylesheet" type="text/css" href="./assets/layui/css/theme.css" />
-    <link rel="stylesheet" type="text/css" href="./assets/css/main/style_PC.css" media="screen and (min-width: 960px)" />
+    <link rel="stylesheet" type="text/css" href="./assets/css/main/style.css" />
     <!-- <link rel="stylesheet" type="text/css" href="./assets/css/style_Phone.css" media="screen and (min-width: 720px)" /> -->
-    <script src="./assets/Message/js/message.min.js" type="text/javascript" charset="utf-8"></script>
-    <script src="./assets/layui/layui.js"></script>
-    <script src="./assets//js/lib/jquery-3.5.1.min.js"></script>
+    <link rel="stylesheet" href="./assets/css/main/github.min.css">
+    <script src="./assets/js/lib/jquery-3.5.1.min.js"></script>
     <script src="./assets/js/lib/jquery.cookie.min.js"></script>
     <script src="./assets/js/md5.min.js"></script>
+    <script src="./assets/layui/layui.js"></script>
+    <script src="./assets/Message/js/message.min.js"></script>
     <script src="./assets/js/sweetalert.min.js"></script>
-    <style type="text/css">
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            width: 100%;
-        }
-
-        body {
-            background-size: cover;
-            background-position: center center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            transition: background-image 1s ease-in-out;
-            position: relative;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: inherit;
-            background-size: cover;
-            background-position: center center;
-            background-repeat: no-repeat;
-            z-index: -1;
-        }
-
-        .time {
-            width: 80%;
-            margin: 0 auto;
-            text-align: center;
-        }
-
-        .img img {
-            border-radius: 10px;
-            background-color: #fff;
-        }
-
-        .layui-form-selectup dl {
-            top: auto;
-            bottom: auto;
-        }
-
-        .layui-edge {
-            right: 70px !important;
-        }
-
-        .status-active {
-            color: #28a745;
-            font-weight: bold;
-        }
-
-        .status-expired {
-            color: #dc3545;
-            font-weight: bold;
-        }
-
-        .query-result {
-            padding: 15px;
-            background: linear-gradient(145deg, #3fcfbb, #33cabb);
-            border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-            color: #fff;
-            margin: 15px auto;
-            width: calc(100% - 30px);
-            max-width: calc(100% - 30px);
-        }
-
-        .result-header {
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .result-header i {
-            font-size: 18px;
-        }
-
-        .time-label {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-
-        .time-value {
-            font-size: 15px;
-            font-weight: bold;
-        }
-
-        .result-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .result-status i {
-            font-size: 16px;
-        }
-
-        .status-active {
-            color: #fff;
-            font-weight: 500;
-        }
-
-        .status-expired {
-            color: #ff6b6b;
-            font-weight: 500;
-        }
-
-        .reg-success {
-            background: linear-gradient(145deg, #3fcfbb, #33cabb);
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            color: #fff;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 15px;
-        }
-
-        .success-icon {
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-
-        .success-icon i {
-            color: #fff;
-        }
-
-        .reg-info {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            padding: 15px;
-            line-height: 1.6;
-        }
-
-        .info-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
-        }
-
-        .info-item:hover {
-            background: rgba(255, 255, 255, 0.05);
-            padding-left: 8px;
-            padding-right: 8px;
-            margin: 0 -8px;
-        }
-
-        .info-label {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            opacity: 0.9;
-            font-weight: 500;
-        }
-
-        .info-label i {
-            font-size: 16px;
-            opacity: 0.8;
-            transition: all 0.3s ease;
-        }
-
-        .info-item:hover .info-label i {
-            opacity: 1;
-            transform: scale(1.1);
-        }
-
-        .info-value {
-            font-weight: 500;
-            word-break: break-all;
-            background: rgba(255, 255, 255, 0.15);
-            padding: 4px 8px;
-            border-radius: 4px;
-            transition: all 0.3s ease;
-        }
-
-        .info-value:hover {
-            background: rgba(255, 255, 255, 0.25);
-            transform: translateX(5px);
-        }
-
-        .status-active {
-            color: #fff;
-            font-weight: 500;
-            background: rgba(40, 167, 69, 0.3);
-            padding: 4px 8px;
-            border-radius: 4px;
-        }
-
-        .status-expired {
-            color: #fff;
-            font-weight: 500;
-            background: rgba(255, 107, 107, 0.3);
-            padding: 4px 8px;
-            border-radius: 4px;
-        }
-
-        .success-tips {
-            font-size: 14px;
-            opacity: 0.8;
-            font-style: italic;
-        }
-
-        /* 移动端适配样式 */
-        @media screen and (max-width: 768px) {
-            .query-result {
-                padding: 12px;
-                margin: 10px auto;
-                width: calc(100% - 24px);
-                max-width: calc(100% - 24px);
+    <script src="./assets/js/highlight.min.js"></script>
+    <script src="./assets/js/marked.min.js"></script>
+    <script>
+        // 初始化highlight.js
+        document.addEventListener('DOMContentLoaded', (event) => {
+            if (typeof hljs !== 'undefined') {
+                hljs.configure({
+                    languages: ['python', 'javascript', 'bash', 'sql', 'php'],
+                    ignoreUnescapedHTML: true
+                });
             }
+        });
 
-            .result-header {
-                margin-bottom: 8px;
-                gap: 6px;
-            }
-
-            .result-header i {
-                font-size: 16px;
-            }
-
-            .time-value {
-                font-size: 14px;
-            }
-
-            .info-item {
-                padding: 6px 0;
-            }
-
-            .info-label {
-                font-size: 13px;
-            }
-
-            .info-value {
-                font-size: 13px;
-            }
-
-            .info-label i {
-                font-size: 14px;
-            }
-
-            .kami-info {
-                padding: 0 35px !important;
+        // 封装代码高亮函数
+        function applyHighlight(element) {
+            if (typeof hljs !== 'undefined') {
+                element.querySelectorAll('pre code').forEach(function(block) {
+                    try {
+                        hljs.highlightElement(block);
+                    } catch (e) {
+                        console.warn('Highlight error:', e);
+                    }
+                });
             }
         }
 
-        /* 电脑端样式 */
-        @media screen and (min-width: 769px) {
-            .kami-info {
-                padding: 0 70px !important;
-            }
+        // 使用 MutationObserver 监听DOM变化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 创建观察器实例
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1 && node.classList.contains('markdown-content')) {
+                            applyHighlight(node);
+                        }
+                    });
+                });
+            });
+
+            // 配置观察选项
+            const config = {
+                childList: true,     // 观察子节点的添加或删除
+                subtree: true,       // 观察所有后代节点
+                attributes: false,    // 不观察属性变化
+                characterData: false  // 不观察文本内容变化
+            };
+
+            // 开始观察文档
+            observer.observe(document.body, config);
+        });
+
+        function showMarkdownContent(content) {
+            return new Promise((resolve) => {
+                var slider = document.createElement("div");
+                
+                // 配置marked选项
+                marked.setOptions({
+                    highlight: function(code, lang) {
+                        if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                            try {
+                                return hljs.highlight(code, { language: lang }).value;
+                            } catch (e) {
+                                console.warn('Highlight error:', e);
+                                return code;
+                            }
+                        }
+                        return code;
+                    },
+                    breaks: true,
+                    gfm: true,
+                    pedantic: false,
+                    sanitize: false,
+                    smartLists: true,
+                    smartypants: false
+                });
+                
+                try {
+                    // 解析Markdown内容
+                    slider.innerHTML = marked.parse(content);
+                    slider.classList.add('markdown-content');
+                    
+                    swal({
+                        title: "公告",
+                        icon: "success",
+                        button: "好的",
+                        content: slider,
+                    }).then(() => {
+                        resolve();
+                    });
+                } catch (e) {
+                    console.error('Markdown parsing error:', e);
+                    resolve();
+                }
+            });
         }
 
-        /* 超小屏幕适配 */
-        @media screen and (max-width: 320px) {
-            .query-result {
-                padding: 10px;
-                margin: 8px auto;
+        $(function() {
+            var isModal = <?php echo (empty($conf['wzgg']) || $conf['ggswitch'] != 1) ? 'false' : 'true'; ?>;
+            if (!$.cookie('op') && isModal == true) {
+                var mdContent = <?php echo json_encode($conf['wzgg']); ?>;
+                showMarkdownContent(mdContent).then(() => {
+                    var cookietime = new Date();
+                    cookietime.setTime(cookietime.getTime() + (10 * 60 * 1000));
+                    $.cookie('op', false, { expires: cookietime });
+                });
             }
 
-            .result-header i {
-                font-size: 14px;
-            }
-
-            .time-value {
-                font-size: 13px;
-            }
-
-            .info-item {
-                padding: 5px 0;
-            }
-
-            .info-label, .info-value {
-                font-size: 12px;
-            }
-
-            .info-label i {
-                font-size: 13px;
-            }
-        }
-    </style>
+            window.showgg = function() {
+                <?php if ($conf['ggswitch'] == 1) { ?>
+                    var mdContent = <?php echo json_encode($conf['wzgg']); ?>;
+                    showMarkdownContent(mdContent).then(() => {
+                        var cookietime = new Date();
+                        cookietime.setTime(cookietime.getTime() + (10 * 60 * 1000));
+                        $.cookie('op', false, { expires: cookietime });
+                    });
+                <?php } else { ?>
+                    notgg();
+                <?php } ?>
+            };
+        });
+    </script>
 </head>
 
 <body>
@@ -1503,45 +1334,6 @@ try {
                 });
             });
 
-            var isModal = <?php echo (empty($conf['wzgg']) || $conf['ggswitch'] != 1) ? 'false' : 'true'; ?>;
-            if (!$.cookie('op') && isModal == true) {
-                var slider = document.createElement("div");
-                slider.innerHTML = '<?php echo $conf['wzgg']; ?>';
-                swal({
-                    title: "公告",
-                    icon: "success",
-                    button: "好的",
-                    content: slider,
-                });
-                var cookietime = new Date();
-                cookietime.setTime(cookietime.getTime() + (10 * 60 * 1000));
-                $.cookie('op', false, {
-                    expires: cookietime
-                });
-            }
-
-        })
-
-        function showgg() {
-            <?php if ($conf['ggswitch'] == 1) { ?>
-                var slider = document.createElement("div");
-                slider.innerHTML = '<?php echo $conf['wzgg']; ?>';
-                swal({
-                    title: "公告",
-                    icon: "success",
-                    button: "好的",
-                    content: slider,
-                });
-                var cookietime = new Date();
-                cookietime.setTime(cookietime.getTime() + (10 * 60 * 1000));
-                $.cookie('op', false, {
-                    expires: cookietime
-                });
-            <?php } else { ?>
-                notgg();
-            <?php } ?>
-        }
-
         function notgg() {
             swal({
                 title: "公告",
@@ -1589,6 +1381,7 @@ try {
 
         // 每分钟检查一次是否需要切换背景
         setInterval(setBackground, 60000);
+        });
     </script>
 </body>
 

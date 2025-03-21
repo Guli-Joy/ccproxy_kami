@@ -13,6 +13,271 @@ if (!($islogin == 1)) {
 		</title>
 		<?php include("foot.php"); ?>
 		<link rel="stylesheet" href="css/hostset.css">
+		<!-- Markdown相关依赖 -->
+		<link rel="stylesheet" href="../../assets/css/main/github.min.css">
+		<script src="../../assets/js/marked.umd.js"></script>
+		<script src="../../assets/js/highlight.min.js"></script>
+		<script>
+		// 确保marked和highlight.js正确加载
+		window.addEventListener('load', function() {
+			if (typeof marked === 'undefined') {
+				layer.msg('Markdown解析器未能加载，部分功能可能无法使用', {icon: 2});
+			}
+			if (typeof hljs === 'undefined') {
+				layer.msg('代码高亮插件未能加载，部分功能可能无法使用', {icon: 2});
+			}
+		});
+		</script>
+		<style>
+		/* 卡片样式优化 */
+		.setting-card {
+			background: #fff;
+			border-radius: 8px;
+			box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+			margin-bottom: 20px;
+			overflow: hidden;
+		}
+
+		.card-title {
+			padding: 15px 20px;
+			font-size: 16px;
+			font-weight: 600;
+			border-bottom: 1px solid #f0f0f0;
+			background: #fafafa;
+			color: #333;
+		}
+
+		.card-content {
+			padding: 20px;
+		}
+
+		/* Markdown编辑器样式 */
+		.md-editor-container {
+			border: 1px solid #e6e6e6;
+			border-radius: 4px;
+			background: #fff;
+		}
+
+		.md-toolbar {
+			padding: 10px;
+			background: #f8f8f8;
+			border-bottom: 1px solid #e6e6e6;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			position: sticky;
+			top: 0;
+			z-index: 100;
+		}
+
+		.toolbar-group {
+			display: flex;
+			gap: 4px;
+			padding-right: 8px;
+			border-right: 1px solid #e6e6e6;
+		}
+
+		.toolbar-group:last-child {
+			border-right: none;
+		}
+
+		.layui-btn-sm {
+			height: 28px;
+			line-height: 28px;
+			padding: 0 10px;
+			font-size: 12px;
+		}
+
+		.layui-btn-sm i {
+			font-size: 14px;
+		}
+
+		/* 编辑器主体 */
+		.editor-main {
+			display: flex;
+			min-height: 400px;
+		}
+
+		#wzggs {
+			flex: 1;
+			min-height: 400px;
+			padding: 15px;
+			font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+			line-height: 1.6;
+			font-size: 14px;
+			border: none;
+			resize: vertical;
+			background: #fff;
+		}
+
+		#wzggs:focus {
+			border: none;
+			outline: none;
+		}
+
+		/* 预览区域样式优化 */
+		.markdown-preview {
+			flex: 1;
+			padding: 20px 30px;
+			border-left: 1px solid #e6e6e6;
+			background: #fff;
+			overflow-y: auto;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+			font-size: 15px;
+			line-height: 1.7;
+			word-wrap: break-word;
+			transition: all 0.3s ease;
+		}
+
+		/* Markdown内容样式 */
+		.markdown-preview h1,
+		.markdown-preview h2,
+		.markdown-preview h3,
+		.markdown-preview h4,
+		.markdown-preview h5,
+		.markdown-preview h6 {
+			margin-top: 24px;
+			margin-bottom: 16px;
+			font-weight: 600;
+			line-height: 1.25;
+		}
+
+		.markdown-preview h1 { font-size: 2em; padding-bottom: .3em; border-bottom: 1px solid #eaecef; }
+		.markdown-preview h2 { font-size: 1.5em; padding-bottom: .3em; border-bottom: 1px solid #eaecef; }
+		.markdown-preview h3 { font-size: 1.25em; }
+		.markdown-preview h4 { font-size: 1em; }
+		.markdown-preview h5 { font-size: 0.875em; }
+		.markdown-preview h6 { font-size: 0.85em; color: #6a737d; }
+
+		.markdown-preview p {
+			margin-bottom: 16px;
+		}
+
+		.markdown-preview blockquote {
+			padding: 0 1em;
+			color: #6a737d;
+			border-left: 0.25em solid #dfe2e5;
+			margin: 0 0 16px 0;
+		}
+
+		.markdown-preview code {
+			padding: 0.2em 0.4em;
+			margin: 0;
+			font-size: 85%;
+			background-color: rgba(27,31,35,0.05);
+			border-radius: 3px;
+			font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+		}
+
+		.markdown-preview pre code {
+			padding: 16px;
+			overflow: auto;
+			font-size: 85%;
+			line-height: 1.45;
+			background-color: #f6f8fa;
+			border-radius: 3px;
+			display: block;
+		}
+
+		.markdown-preview table {
+			display: block;
+			width: 100%;
+			overflow: auto;
+			margin: 16px 0;
+			border-spacing: 0;
+			border-collapse: collapse;
+		}
+
+		.markdown-preview table th,
+		.markdown-preview table td {
+			padding: 6px 13px;
+			border: 1px solid #dfe2e5;
+		}
+
+		.markdown-preview table tr:nth-child(2n) {
+			background-color: #f6f8fa;
+		}
+
+		.markdown-preview hr {
+			height: 0.25em;
+			padding: 0;
+			margin: 24px 0;
+			background-color: #e1e4e8;
+			border: 0;
+		}
+
+		.markdown-preview ul,
+		.markdown-preview ol {
+			padding-left: 2em;
+			margin-bottom: 16px;
+		}
+
+		.markdown-preview img {
+			max-width: 100%;
+			box-sizing: content-box;
+			background-color: #fff;
+			border-radius: 3px;
+		}
+
+		.markdown-preview a {
+			color: #0366d6;
+			text-decoration: none;
+		}
+
+		.markdown-preview a:hover {
+			text-decoration: underline;
+		}
+
+		/* 动画效果 */
+		.markdown-preview.fade-enter {
+			opacity: 0;
+			transform: translateX(10px);
+		}
+
+		.markdown-preview.fade-enter-active {
+			opacity: 1;
+			transform: translateX(0);
+			transition: opacity 300ms, transform 300ms;
+		}
+
+		/* 响应式布局 */
+		@media screen and (max-width: 768px) {
+			.card-content {
+				padding: 15px;
+			}
+
+			.md-toolbar {
+				padding: 8px;
+				gap: 4px;
+			}
+
+			.toolbar-group {
+				padding-right: 4px;
+			}
+
+			.layui-btn-sm {
+				padding: 0 8px;
+			}
+		}
+
+		/* 美化滚动条 */
+		#wzggs::-webkit-scrollbar,
+		.markdown-preview::-webkit-scrollbar {
+			width: 6px;
+			height: 6px;
+		}
+
+		#wzggs::-webkit-scrollbar-thumb,
+		.markdown-preview::-webkit-scrollbar-thumb {
+			background: rgba(0,0,0,0.1);
+			border-radius: 3px;
+		}
+
+		#wzggs::-webkit-scrollbar-track,
+		.markdown-preview::-webkit-scrollbar-track {
+			background: transparent;
+		}
+		</style>
 	</head>
 	<body>
 		<div class="layui-card layui-form">
@@ -101,6 +366,14 @@ if (!($islogin == 1)) {
 										</div>
 									</div>
 									
+									<div class="layui-form-item">
+										<label class="layui-form-label">显示继承应用</label>
+										<div class="layui-input-block">
+											<input type="checkbox" name="show_inherit_apps" lay-skin="switch" lay-text="开启|关闭" <?php echo($subconf["show_inherit_apps"]==1 ? 'checked':'');?> />
+											<div class="layui-form-mid layui-word-aux">开启后,前端将显示继承应用,关闭则只显示主应用</div>
+										</div>
+									</div>
+									
 									<!-- 继承组列表 -->
 									<div id="inherit_groups">
 										<?php 
@@ -172,10 +445,52 @@ if (!($islogin == 1)) {
 										<label class="layui-form-label">网站公告</label>
 										<div class="layui-input-block">
 											<input type="checkbox" name="ggswitch" lay-skin="switch" lay-text="开启|关闭" lay-filter="ggswitch" <?php echo($subconf["ggswitch"]==1 ? 'checked':'');?> />
-											<div class="wzggs" style="margin-top: 10px;">
+											<div class="wzggs" style="margin-top: 15px;">
 											<?php
 											if($subconf['ggswitch']==1){
-												echo '<div class="layui-form-item"><div class="gg"><div class="layui-input-block"><textarea name="wzgg" class="layui-textarea" placeholder="请输入网站公告内容">'. $subconf['wzgg'].'</textarea></div></div></div>';
+												echo '<div class="layui-form-item">
+													<div class="gg">
+														<div class="md-editor-container">
+															<!-- Markdown工具栏 -->
+															<div class="md-toolbar">
+																<div class="toolbar-group">
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="h1">H1</button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="h2">H2</button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="h3">H3</button>
+																</div>
+																<div class="toolbar-group">
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="bold"><i class="layui-icon">&#xe756;</i></button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="italic"><i class="layui-icon">&#xe754;</i></button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="strike"><i class="layui-icon">&#xe755;</i></button>
+																</div>
+																<div class="toolbar-group">
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="link"><i class="layui-icon">&#xe64c;</i></button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="image"><i class="layui-icon">&#xe64a;</i></button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="code"><i class="layui-icon">&#xe64e;</i></button>
+																</div>
+																<div class="toolbar-group">
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="ul"><i class="layui-icon">&#xe63b;</i></button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="ol"><i class="layui-icon">&#xe63c;</i></button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="quote"><i class="layui-icon">&#xe63a;</i></button>
+																</div>
+																<div class="toolbar-group">
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="table">表格</button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="hr">分割线</button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md="emoji">表情</button>
+																</div>
+																<div class="toolbar-group">
+																	<button type="button" class="layui-btn layui-btn-normal layui-btn-sm" id="previewMd">预览</button>
+																	<button type="button" class="layui-btn layui-btn-primary layui-btn-sm" id="insertTemplate">插入模板</button>
+																</div>
+															</div>
+															<div class="editor-main">
+																<textarea name="wzgg" id="wzggs" class="layui-textarea" placeholder="支持Markdown格式">'. $subconf['wzgg'].'</textarea>
+																<!-- 预览区域 -->
+																<div id="mdPreview" class="markdown-preview" style="display:none;"></div>
+															</div>
+														</div>
+													</div>
+												</div>';
 											}
 											?>
 											</div>
@@ -245,14 +560,46 @@ if (!($islogin == 1)) {
 		</div>
 	</body>
 	<script>
+		// 初始化marked
+		var initMarked = function() {
+			if (typeof marked === 'undefined') {
+				return;
+			}
+
+			// 配置marked
+			marked.setOptions({
+				renderer: new marked.Renderer(),
+				highlight: function(code, language) {
+					if (language && hljs.getLanguage(language)) {
+						try {
+							return hljs.highlight(code, {
+								language: language,
+								ignoreIllegals: true
+							}).value;
+						} catch (err) {}
+					}
+					return code;
+				},
+				langPrefix: 'hljs language-',
+				pedantic: false,
+				gfm: true,
+				breaks: true,
+				sanitize: false,
+				smartypants: false,
+				xhtml: false
+			});
+		};
+
 		layui.use(["jquery", "form", "element", "util", "transfer"], function() {
 			var $ = layui.$,
 				form = layui.form,
 				element = layui.element,
-                layedit = layui.layedit,
 				transfer = layui.transfer,
 				util = layui.util;
-				
+
+			// 初始化marked
+			initMarked();
+			
 			// 继承组模板
 			function getInheritGroupTemplate(groupId) {
 				return '<div class="inherit-group" data-group-id="' + groupId + '">' +
@@ -293,7 +640,6 @@ if (!($islogin == 1)) {
 					var groupId = $(this).data('group-id');
 					var mainApps = $(this).find('.main-app-select').val() || [];
 					
-					// 获取transfer数据
 					var transferId = 'inheritAppsTransfer_' + groupId;
 					var transferData = layui.transfer.getData(transferId);
 					var inheritApps = [];
@@ -304,7 +650,6 @@ if (!($islogin == 1)) {
 						});
 					}
 					
-					// 只要有主应用或继承应用就保存
 					if(mainApps.length > 0 || inheritApps.length > 0) {
 						groups.push({
 							id: parseInt(groupId),
@@ -316,7 +661,6 @@ if (!($islogin == 1)) {
 				
 				var config = JSON.stringify({groups: groups});
 				$('input[name="inherit_config"]').val(config);
-				console.log('保存的继承配置:', config); // 添加调试日志
 			}
 			
 			// 修改initInheritGroup函数
@@ -324,26 +668,17 @@ if (!($islogin == 1)) {
 				var group = $(getInheritGroupTemplate(groupId));
 				$('#inherit_groups').append(group);
 				
-				// 填充应用数据
 				var mainAppSelect = group.find('.main-app-select');
 				var transferData = [];
 				
-				// 确保mainApps和inheritApps是数组
 				mainApps = Array.isArray(mainApps) ? mainApps : [];
 				inheritApps = Array.isArray(inheritApps) ? inheritApps : [];
 				
-				console.log('初始化组' + groupId + ':', {
-					mainApps: mainApps,
-					inheritApps: inheritApps
-				});
-				
 				if(Array.isArray(data)) {
 					data.forEach(function(app) {
-						// 添加到主应用选择框
 						var mainSelected = mainApps.includes(app.appcode) ? 'selected' : '';
 						mainAppSelect.append('<option value="' + app.appcode + '" ' + mainSelected + '>' + app.appname + ' [' + app.appcode + ']</option>');
 						
-						// 只有不是主应用的才能添加到穿梭框
 						if(!mainApps.includes(app.appcode)) {
 							transferData.push({
 								value: app.appcode,
@@ -354,19 +689,17 @@ if (!($islogin == 1)) {
 					});
 				}
 				
-				// 渲染穿梭框
 				transfer.render({
 					elem: '#inherit_apps_transfer_' + groupId,
 					title: ['可选应用', '已选应用'],
 					id: 'inheritAppsTransfer_' + groupId,
 					data: transferData,
-					value: inheritApps, // 设置已选中的值
+					value: inheritApps,
 					text: {
 						none: '无数据',
 						searchNone: '无匹配数据'
 					},
 					onchange: function(data, index) {
-						console.log('穿梭框数据变化:', data);
 						saveInheritConfig();
 					},
 					parseData: function(item) {
@@ -379,12 +712,9 @@ if (!($islogin == 1)) {
 					}
 				});
 				
-				// 监听主应用选择
 				form.on('select(main_app_' + groupId + ')', function(data) {
-					// 获取当前选中的值
 					var selectedValues = data.value || [];
 					
-					// 获取所有应用数据
 					$.ajax({
 						url: "ajax.php?act=getapps",
 						type: "POST",
@@ -393,15 +723,12 @@ if (!($islogin == 1)) {
 							if(response.code == 1) {
 								var allApps = response.data;
 								
-								// 获取当前已选中的继承应用
 								var currentInheritApps = transfer.getData('inheritAppsTransfer_' + groupId).map(function(item) {
 									return item.value;
 								});
 								
-								// 重新渲染穿梭框
 								var newTransferData = [];
 								
-								// 过滤出未被选为主应用的应用
 								allApps.forEach(function(app) {
 									if(!selectedValues.includes(app.appcode)) {
 										newTransferData.push({
@@ -412,7 +739,6 @@ if (!($islogin == 1)) {
 									}
 								});
 								
-								// 重新渲染穿梭框
 								transfer.render({
 									elem: '#inherit_apps_transfer_' + groupId,
 									title: ['可选应用', '已选应用'],
@@ -426,12 +752,10 @@ if (!($islogin == 1)) {
 										searchNone: '无匹配数据'
 									},
 									onchange: function(data, index) {
-										console.log('穿梭框数据变化:', data);
 										saveInheritConfig();
 									}
 								});
 								
-								// 保存配置
 								saveInheritConfig();
 							} else {
 								layer.msg(response.msg || "获取应用列表失败", {icon: 5});
@@ -454,22 +778,17 @@ if (!($islogin == 1)) {
 					dataType: "json",
 					success: function(data) {
 						if(data.code == 1) {
-							// 保存原有的配置input
 							var $configInput = $('input[name="inherit_config"]');
 							var configValue = $configInput.val();
 							
-							// 清空现有继承组
 							$('#inherit_groups').empty();
 							
-							// 还原配置input
 							$('#inherit_groups').append($configInput);
 							
-							// 获取保存的配置
 							var config = {groups: []};
 							
 							try {
 								if(configValue) {
-									// 递归解码HTML实体
 									var decodedStr = configValue;
 									var prevStr = '';
 									while(decodedStr !== prevStr) {
@@ -477,19 +796,15 @@ if (!($islogin == 1)) {
 										decoded_str = $('<div/>').html(decodedStr).text();
 									}
 									config = JSON.parse(decodedStr);
-									console.log('加载的继承配置:', config); // 添加调试日志
 								}
 							} catch(e) {
-								console.error('解析继承配置失败:', e);
 								layer.msg('解析继承配置失败，将重置配置', {icon: 0});
 							}
 							
-							// 确保groups是数组
 							if(!Array.isArray(config.groups)) {
 								config.groups = [];
 							}
 							
-							// 如果有保存的组,则初始化它们
 							if(config.groups.length > 0) {
 								config.groups.forEach(function(group) {
 									if(group && group.id) {
@@ -502,23 +817,20 @@ if (!($islogin == 1)) {
 									}
 								});
 							} else {
-								// 否则创建一个新组
 								initInheritGroup(1, data.data, [], []);
 							}
 							
-							saveInheritConfig(); // 保存初始配置
+							saveInheritConfig();
 						} else {
 							layer.msg(data.msg || "获取应用列表失败", {icon: 5});
 						}
 					},
 					error: function(xhr, status, error) {
-						console.error('获取应用列表失败:', error);
 						layer.msg("获取应用列表失败: " + error, {icon: 5});
 					}
 				});
 			}
 			
-			// 添加继承组按钮点击事件
 			$('#add_inherit_group').click(function() {
 				var newGroupId = $('.inherit-group').length + 1;
 				$.ajax({
@@ -538,52 +850,38 @@ if (!($islogin == 1)) {
 				});
 			});
 			
-			// 删除继承组
 			$(document).on('click', '.delete-group', function() {
 				var $group = $(this).closest('.inherit-group');
-				var groupId = $group.data('group-id');
-				
-				// 移除组元素
 				$group.remove();
 				saveInheritConfig();
 			});
 			
-			// 页面加载时获取应用列表
 			if($('input[name="inherit_enabled"]').prop('checked')) {
 				loadApps();
 			} else {
-				// 继承功能关闭时隐藏继承组界面，但保留配置
 				$('#inherit_groups').children().not('input[name="inherit_config"]').hide();
 			}
 			
-			// 监听继承开关
 			form.on("switch(inherit_enabled)", function(obj) {
 				if(obj.elem.checked) {
-					// 开启时加载并显示继承组
 					loadApps();
 					$('#inherit_groups').children().show();
 				} else {
-					// 关闭时只隐藏继承组界面，保留配置
 					$('#inherit_groups').children().not('input[name="inherit_config"]').hide();
 				}
 			});
 
-			// 修改表单提交处理
 			form.on("submit(submit)", function(data) {
 				if (data.field.wzgg) {
-					data.field['wzgg'] = data.field.wzgg.replace(/< >/g, " ")
+					data.field['wzgg'] = data.field.wzgg
+						.replace(/< >/g, " ")
 						.replace(/<\/ >/g, " ")
 						.replace(/document/g, " ")
-						.replace(/'/g, '"')
-						.replace(/\n|\r/g, "");
+						.replace(/'/g, '"');
 				}
 				
-				// 保留继承配置，无论开关状态如何
 				data.field.inherit_config = $('input[name="inherit_config"]').val();
 				
-				console.log('提交的数据:', data.field); // 添加调试日志
-				
-				// 清除所有已有的消息
 				layer.closeAll();
 
 				$.ajax({
@@ -599,7 +897,6 @@ if (!($islogin == 1)) {
 						});
 					},
 					success: function(data) {
-						// 清除加载提示
 						layer.closeAll();
 						
 						if(data.code==1){
@@ -608,7 +905,6 @@ if (!($islogin == 1)) {
 								time: 1000,
 								shade: 0.1
 							}, function() {
-								// 保存成功后等待1秒再刷新,让用户看到成功提示
 								setTimeout(function() {
 									window.location.reload();
 								}, 1000);
@@ -622,7 +918,6 @@ if (!($islogin == 1)) {
 						}
 					},
 					error: function(data) {
-						// 清除加载提示
 						layer.closeAll();
 						
 						layer.msg("操作失败，请重试", {
@@ -635,7 +930,6 @@ if (!($islogin == 1)) {
 			});
 
 			form.on("submit(reset)", function(data) {
-				// 清除所有已有的消息
 				layer.closeAll();
 				
 				layer.confirm('确定要重置背景设置吗？', {
@@ -643,13 +937,11 @@ if (!($islogin == 1)) {
 					title: '提示',
 					btn: ['确定','取消']
 				}, function(index){
-					// 设置默认值
 					$("input[name='dayimg']").val("https://api.qjqq.cn/api/Img?sort=belle");
 					$("input[name='nightimg']").val("https://www.dmoe.cc/random.php");
 					$("input[name='bgswitch']").prop("checked", true);
-					form.render(); // 重新渲染表单
+					form.render();
 					
-					// 自动触发保存
 					$("button[lay-filter='submit']").click();
 					
 					layer.close(index);
@@ -712,7 +1004,6 @@ if (!($islogin == 1)) {
 				}
 			});
 
-			// 处理多域名开关
 			form.on("switch(multi_domain)", function(obj) {
 				if(obj.elem.checked) {
 					$(".domain-list").show();
@@ -721,7 +1012,6 @@ if (!($islogin == 1)) {
 				}
 			});
 
-			// 移除禁用状态的样式
 			$("<style>").text(`
 				.input-group {
 					transition: all 0.3s ease;
@@ -731,7 +1021,6 @@ if (!($islogin == 1)) {
 				}
 			`).appendTo("head");
 
-			// 初始化开关状态
 			$("input[type='checkbox']").each(function() {
 				var name = $(this).attr('name');
 				if(name) {
@@ -744,6 +1033,122 @@ if (!($islogin == 1)) {
 						}
 					}
 				}
+			});
+
+			$('.md-toolbar button[data-md]').click(function() {
+				var type = $(this).data('md');
+				var textarea = $('#wzggs');
+				var start = textarea[0].selectionStart;
+				var end = textarea[0].selectionEnd;
+				var text = textarea.val();
+				var selectedText = text.substring(start, end);
+				
+				var insertion = '';
+				switch(type) {
+					case 'h1':
+						insertion = '# ' + (selectedText || '标题1');
+						break;
+					case 'h2':
+						insertion = '## ' + (selectedText || '标题2');
+						break;
+					case 'h3':
+						insertion = '### ' + (selectedText || '标题3');
+						break;
+					case 'bold':
+						insertion = '**' + (selectedText || '粗体文本') + '**';
+						break;
+					case 'italic':
+						insertion = '*' + (selectedText || '斜体文本') + '*';
+						break;
+					case 'strike':
+						insertion = '~~' + (selectedText || '删除线文本') + '~~';
+						break;
+					case 'link':
+						insertion = '[' + (selectedText || '链接文本') + '](https://example.com)';
+						break;
+					case 'image':
+						insertion = '![' + (selectedText || '图片描述') + '](https://example.com/image.jpg)';
+						break;
+					case 'code':
+						if(selectedText.includes('\n')) {
+							insertion = '```\n' + (selectedText || 'code') + '\n```';
+						} else {
+							insertion = '`' + (selectedText || 'code') + '`';
+						}
+						break;
+					case 'ul':
+						insertion = '- ' + (selectedText || '列表项');
+						break;
+					case 'ol':
+						insertion = '1. ' + (selectedText || '列表项');
+						break;
+					case 'quote':
+						insertion = '> ' + (selectedText || '引用文本');
+						break;
+					case 'table':
+						insertion = '\n| 表头1 | 表头2 | 表头3 |\n|--------|--------|--------|\n| 内容1 | 内容2 | 内容3 |\n';
+						break;
+					case 'hr':
+						insertion = '\n---\n';
+						break;
+					case 'emoji':
+						insertion = ':smile:';
+						break;
+				}
+				
+				textarea.val(text.substring(0, start) + insertion + text.substring(end));
+				textarea.focus();
+				return false;
+			});
+
+			$(document).on('click', '#previewMd', function() {
+				if (typeof marked === 'undefined') {
+					layer.msg('Markdown解析器尚未加载完成，请稍后再试', {icon: 2});
+					return false;
+				}
+
+				var content = $('#wzggs').val();
+				var $preview = $('#mdPreview');
+				var $textarea = $('#wzggs');
+				
+				if($preview.is(':visible')) {
+					$preview.fadeOut(300, function() {
+						$(this).removeClass('fade-enter fade-enter-active');
+						$textarea.fadeIn(300);
+					});
+					$(this).text('预览');
+				} else {
+					try {
+						var htmlContent = marked.parse(content);
+						$preview.html(htmlContent);
+						
+						if (typeof hljs !== 'undefined') {
+							$preview.find('pre code').each(function(i, block) {
+								try {
+									hljs.highlightElement(block);
+								} catch (e) {}
+							});
+						}
+						
+						$textarea.fadeOut(300, function() {
+							$preview.addClass('fade-enter')
+								.show()
+								.offset(); // 触发重排以应用动画
+							$preview.addClass('fade-enter-active');
+						});
+						$(this).text('编辑');
+					} catch(e) {
+						layer.msg('预览生成失败', {icon: 2});
+					}
+				}
+				return false;
+			});
+
+			$('#insertTemplate').click(function() {
+				var template = `# 🌟 欢迎使用故离端口系统\n\n## 🎉 最新更新 v4\n我们很高兴地宣布新版本发布了！以下是主要更新内容：\n\n### 🚀 功能优化\n- ✨ 新增在线支付功能\n- 🔒 增强账号安全性\n- 🎨 优化用户界面体验\n- 🔄 提升系统稳定性\n\n### 📝 使用说明\n1. 账号注册：\n   - 支持卡密注册\n   - 支持在线支付注册\n2. 账号续费：\n   - 可使用卡密续费\n   - 支持支付宝/微信支付\n\n### 💡 使用技巧\n> **温馨提示**：首次使用请仔细阅读以下内容\n\n### 📊 套餐价格\n\n| 套餐类型 | 时长 | 价格 |\n|---------|------|------|\n| 体验套餐 | 1天  | ¥1   |\n| 月卡    | 30天 | ¥15  |\n| 季卡    | 90天 | ¥40  |\n| 年卡    | 365天| ¥150 |\n\n### 🎯 特别说明\n1. 严禁违规使用\n2. 禁止账号共享\n3. 有问题请联系客服\n\n### 🔗 快速链接\n- [使用教程](https://example.com/tutorial)\n- [常见问题](https://example.com/faq)\n- [用户协议](https://example.com/terms)\n\n---\n\n### 📞 联系方式\n- 客服QQ：[点击添加](http://wpa.qq.com/msgrd?v=3&uin=您的QQ&site=qq&menu=yes)\n- 官方群：123456789\n- 技术支持：support@example.com\n\n> 🌈 感谢您的使用，我们会持续优化系统，为您提供更好的服务！\n\n---\n*最后更新时间：${new Date().toLocaleDateString()}*`;
+				
+				$('#wzggs').val(template);
+				return false;
 			});
 		});
 	</script>
