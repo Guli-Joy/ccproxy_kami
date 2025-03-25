@@ -138,8 +138,12 @@ switch ($act) {
         $statements = [];
         $current_statement = '';
         $lines = explode("\n", $sql);
+        $in_string = false;
+        $string_char = '';
+        $line_number = 0;
         
         foreach ($lines as $line) {
+            $line_number++;
             $line = trim($line);
             
             // 跳过注释和空行
@@ -147,12 +151,30 @@ switch ($act) {
                 continue;
             }
             
-            $current_statement .= ' ' . $line;
+            // 处理字符串中的分号
+            $chars = str_split($line);
+            foreach ($chars as $char) {
+                if ($char === "'" || $char === '"') {
+                    if (!$in_string) {
+                        $in_string = true;
+                        $string_char = $char;
+                    } else if ($char === $string_char) {
+                        $in_string = false;
+                        $string_char = '';
+                    }
+                }
+                $current_statement .= $char;
+            }
             
-            // 如果行末尾是分号，说明一条语句结束
-            if (substr(trim($line), -1) === ';') {
-                $statements[] = trim($current_statement);
+            // 如果行末尾是分号且不在字符串中，说明一条语句结束
+            if (substr(trim($line), -1) === ';' && !$in_string) {
+                $statements[] = [
+                    'sql' => trim($current_statement),
+                    'line' => $line_number
+                ];
                 $current_statement = '';
+            } else {
+                $current_statement .= ' ';
             }
         }
 
@@ -161,7 +183,8 @@ switch ($act) {
         $errors = [];
 
         // 第一阶段：创建表结构
-        foreach ($statements as $statement) {
+        foreach ($statements as $statement_info) {
+            $statement = $statement_info['sql'];
             if (empty(trim($statement))) continue;
             if (strpos(trim($statement), '--') === 0 || strpos(trim($statement), '/*') === 0) continue;
             
@@ -176,7 +199,8 @@ switch ($act) {
                     die(json_encode([
                         'code' => -1,
                         'msg' => '执行SQL语句失败：' . DB::error(),
-                        'sql' => $statement
+                        'sql' => $statement,
+                        'line' => $statement_info['line']
                     ]));
                 } else {
                     $success++;
@@ -184,12 +208,13 @@ switch ($act) {
             } catch (Exception $e) {
                 DB::query("ROLLBACK");  // 回滚事务
                 $failed++;
-                $errors[] = "SQL: " . substr($statement, 0, 100) . "\n异常: " . $e->getMessage();
+                $errors[] = "SQL: " . substr($statement, 0, 100) . "\n异常: " . $e->getMessage() . "\n行号: " . $statement_info['line'];
             }
         }
 
         // 第二阶段：执行其他SQL语句（数据插入等）
-        foreach ($statements as $statement) {
+        foreach ($statements as $statement_info) {
+            $statement = $statement_info['sql'];
             if (empty(trim($statement))) continue;
             if (strpos(trim($statement), '--') === 0 || strpos(trim($statement), '/*') === 0) continue;
             
@@ -199,12 +224,27 @@ switch ($act) {
             }
             
             try {
+                // 对于INSERT语句，先检查列数和值的数量是否匹配
+                if (stripos($statement, 'INSERT INTO') !== false) {
+                    // 提取列名和值
+                    if (preg_match('/INSERT INTO\s+`?(\w+)`?\s*\((.*?)\)\s*VALUES\s*\((.*?)\)/is', $statement, $matches)) {
+                        $table = $matches[1];
+                        $columns = array_map('trim', explode(',', $matches[2]));
+                        $values = array_map('trim', explode(',', $matches[3]));
+                        
+                        if (count($columns) !== count($values)) {
+                            throw new Exception("列数(" . count($columns) . ")与值的数量(" . count($values) . ")不匹配");
+                        }
+                    }
+                }
+                
                 if (!DB::query($statement)) {
                     DB::query("ROLLBACK");  // 回滚事务
                     die(json_encode([
                         'code' => -1,
                         'msg' => '执行SQL语句失败：' . DB::error(),
-                        'sql' => $statement
+                        'sql' => $statement,
+                        'line' => $statement_info['line']
                     ]));
                 } else {
                     $success++;
@@ -212,7 +252,7 @@ switch ($act) {
             } catch (Exception $e) {
                 DB::query("ROLLBACK");  // 回滚事务
                 $failed++;
-                $errors[] = "SQL: " . substr($statement, 0, 100) . "\n异常: " . $e->getMessage();
+                $errors[] = "SQL: " . substr($statement, 0, 100) . "\n异常: " . $e->getMessage() . "\n行号: " . $statement_info['line'];
             }
         }
 
