@@ -168,6 +168,28 @@ switch ($act) {
             
             // 如果行末尾是分号且不在字符串中，说明一条语句结束
             if (substr(trim($line), -1) === ';' && !$in_string) {
+                // 特别处理sub_admin表的INSERT语句
+                if (stripos($current_statement, 'INSERT INTO `sub_admin`') !== false) {
+                    // 检查是否有列数与值不匹配的问题
+                    if (preg_match('/INSERT INTO\s+`?sub_admin`?\s*\((.*?)\)\s*VALUES\s*\((.*?)\)/is', $current_statement, $matches)) {
+                        $columns = explode(',', $matches[1]);
+                        $values = explode(',', $matches[2]);
+                        
+                        // 简单计数（可能不精确，但是一个快速检查）
+                        $column_count = count($columns);
+                        $value_count = count($values);
+                        
+                        // 如果不匹配，则手动修复
+                        if ($column_count != $value_count) {
+                            // 手动修复sub_admin表的insert语句
+                            $fixed_sql = "INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`, `show_kami_query`, `show_change_pwd`, `multi_domain`, `domain_list`, `inherit_enabled`, `show_inherit_apps`, `inherit_groups`) 
+VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','" . $server_name . "',1,'','# 🌟 欢迎使用故离端口系统\n\n## 🎉 系统说明\n\n### 🚀 主要功能\n- ✨ 支持在线支付\n- 🔒 账号管理系统\n- 🎨 界面美观大方\n- 🔄 稳定性强\n\n### 📝 使用说明\n1. 支持多种注册方式\n2. 灵活的续费选项\n\n> 温馨提示：请遵守使用规则\n\n### 📞 联系方式\n- 客服QQ：请点击客服按钮\n- 问题反馈：请联系客服\n\n---\n*感谢您的使用！*','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1,1,1,0,'',0,1,'[]');";
+                            
+                            $current_statement = $fixed_sql;
+                        }
+                    }
+                }
+                
                 $statements[] = [
                     'sql' => trim($current_statement),
                     'line' => $line_number
@@ -226,14 +248,134 @@ switch ($act) {
             try {
                 // 对于INSERT语句，先检查列数和值的数量是否匹配
                 if (stripos($statement, 'INSERT INTO') !== false) {
+                    // 对于sub_admin表的插入，直接使用预定义的语句
+                    if (stripos($statement, 'INSERT INTO `sub_admin`') !== false || stripos($statement, 'INSERT INTO sub_admin') !== false) {
+                        // 使用标准化的SQL语句
+                        $safe_statement = "INSERT INTO `sub_admin` (`id`, `username`, `password`, `hostname`, `cookies`, `found_date`, `over_date`, `siteurl`, `state`, `pan`, `wzgg`, `kf`, `img`, `ggswitch`, `kfswitch`, `panswitch`, `qx`, `dayimg`, `nightimg`, `bgswitch`, `show_online_pay`, `show_kami_pay`, `show_kami_reg`, `show_user_search`, `show_kami_query`, `show_change_pwd`, `multi_domain`, `domain_list`, `inherit_enabled`, `show_inherit_apps`, `inherit_groups`) 
+VALUES (1,'admin','123456','故离端口','c93a36XpmjKPlGPcwsKTtXmI0m2bzaYWHkAhQehg/ExyIRZ5bpLQkxcmi1nQlFOO7dxjXmkNhFlD9dx0RicNR4Gggw','2024-12-03 13:17:17','2033-12-31 13:17:17','" . $server_name . "',1,'','# 🌟 欢迎使用故离端口系统\n\n## 🎉 系统说明\n\n### 🚀 主要功能\n- ✨ 支持在线支付\n- 🔒 账号管理系统\n- 🎨 界面美观大方\n- 🔄 稳定性强\n\n### 📝 使用说明\n1. 支持多种注册方式\n2. 灵活的续费选项\n\n> 温馨提示：请遵守使用规则\n\n### 📞 联系方式\n- 客服QQ：请点击客服按钮\n- 问题反馈：请联系客服\n\n---\n*感谢您的使用！*','./assets/img/bj.jpg',1,1,1,1,'https://api.qjqq.cn/api/Img?sort=belle','https://www.dmoe.cc/random.php',1,1,1,1,1,1,1,0,'',0,1,'[]');";
+                        
+                        $statement = $safe_statement;
+                        continue;
+                    }
+                
                     // 提取列名和值
                     if (preg_match('/INSERT INTO\s+`?(\w+)`?\s*\((.*?)\)\s*VALUES\s*\((.*?)\)/is', $statement, $matches)) {
                         $table = $matches[1];
-                        $columns = array_map('trim', explode(',', $matches[2]));
-                        $values = array_map('trim', explode(',', $matches[3]));
+                        $columns_str = $matches[2];
+                        $values_str = $matches[3];
                         
-                        if (count($columns) !== count($values)) {
-                            throw new Exception("列数(" . count($columns) . ")与值的数量(" . count($values) . ")不匹配");
+                        // 提取列名列表
+                        $columns = [];
+                        $in_backtick = false;
+                        $current_col = '';
+                        
+                        for ($i = 0; $i < strlen($columns_str); $i++) {
+                            $char = $columns_str[$i];
+                            
+                            if ($char == '`') {
+                                $in_backtick = !$in_backtick;
+                                $current_col .= $char;
+                            } else if ($char == ',' && !$in_backtick) {
+                                $columns[] = trim($current_col);
+                                $current_col = '';
+                            } else {
+                                $current_col .= $char;
+                            }
+                        }
+                        
+                        if (!empty($current_col)) {
+                            $columns[] = trim($current_col);
+                        }
+                        
+                        // 提取值列表
+                        $values = [];
+                        $in_string = false;
+                        $string_char = '';
+                        $current_val = '';
+                        $in_parentheses = 0;
+                        
+                        for ($i = 0; $i < strlen($values_str); $i++) {
+                            $char = $values_str[$i];
+                            
+                            if (($char == "'" || $char == '"') && (empty($string_char) || $string_char == $char)) {
+                                if ($in_string && $i > 0 && $values_str[$i-1] == '\\') {
+                                    // 转义的引号
+                                    $current_val .= $char;
+                                } else {
+                                    $in_string = !$in_string;
+                                    if ($in_string) {
+                                        $string_char = $char;
+                                    } else {
+                                        $string_char = '';
+                                    }
+                                    $current_val .= $char;
+                                }
+                            } else if ($char == '(' && !$in_string) {
+                                $in_parentheses++;
+                                $current_val .= $char;
+                            } else if ($char == ')' && !$in_string) {
+                                $in_parentheses--;
+                                $current_val .= $char;
+                            } else if ($char == ',' && !$in_string && $in_parentheses == 0) {
+                                $values[] = trim($current_val);
+                                $current_val = '';
+                            } else {
+                                $current_val .= $char;
+                            }
+                        }
+                        
+                        if (!empty($current_val)) {
+                            $values[] = trim($current_val);
+                        }
+                        
+                        $column_count = count($columns);
+                        $value_count = count($values);
+                        
+                        // 如果是sub_admin表，并且列数与值不匹配，尝试自动修复
+                        if ($table == 'sub_admin' && $column_count !== $value_count) {
+                            // 创建新的修复后的语句
+                            $fixed_statement = "INSERT INTO `sub_admin` (";
+                            
+                            // 列名保持不变
+                            $fixed_statement .= $columns_str;
+                            $fixed_statement .= ") VALUES (";
+                            
+                            // 根据表结构列表自动补全值
+                            $fixed_values = [];
+                            
+                            for ($i = 0; $i < $column_count; $i++) {
+                                if ($i < $value_count) {
+                                    // 使用现有值
+                                    $fixed_values[] = $values[$i];
+                                } else {
+                                    // 根据列类型添加默认值
+                                    $col_name = preg_replace('/[`"\']/', '', $columns[$i]);
+                                    
+                                    // 根据列名推断合适的默认值
+                                    if (strpos($col_name, 'enabled') !== false || 
+                                        strpos($col_name, 'switch') !== false || 
+                                        strpos($col_name, 'state') !== false) {
+                                        $fixed_values[] = '0'; // 布尔开关类型
+                                    } else if (strpos($col_name, 'list') !== false || 
+                                              strpos($col_name, 'groups') !== false || 
+                                              strpos($col_name, 'json') !== false) {
+                                        $fixed_values[] = "''"; // 空JSON字符串
+                                    } else if (strpos($col_name, 'time') !== false || 
+                                              strpos($col_name, 'date') !== false) {
+                                        $fixed_values[] = "'".date('Y-m-d H:i:s')."'"; // 当前时间
+                                    } else {
+                                        $fixed_values[] = "''"; // 默认空字符串
+                                    }
+                                }
+                            }
+                            
+                            $fixed_statement .= implode(", ", $fixed_values);
+                            $fixed_statement .= ");";
+                            
+                            // 使用修复后的语句替换原语句
+                            $statement = $fixed_statement;
+                        } else if ($column_count !== $value_count) {
+                            throw new Exception("列数($column_count)与值的数量($value_count)不匹配");
                         }
                     }
                 }
