@@ -3044,6 +3044,287 @@ switch ($act) {
         }
         break;
 
+    case "batchadduser":
+        try {
+            // 验证输入
+            if(!isset($_POST['batch_data'])) {
+                throw new Exception('缺少批量创建参数');
+            }
+            
+            // 获取参数
+            $batch_data = $_POST['batch_data'];
+            $start_index = isset($_POST['start_index']) ? intval($_POST['start_index']) : 0;
+            $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 10;
+            
+            // 验证必要参数
+            $required_fields = ['app', 'count', 'user_type', 'user_length', 'pwd_type', 'expire'];
+            foreach($required_fields as $field) {
+                if(!isset($batch_data[$field])) {
+                    throw new Exception('缺少必要参数：' . $field);
+                }
+            }
+            
+            // 检查应用是否存在
+            $app = $DB->selectRow("SELECT * FROM application WHERE appcode='" . $DB->escape($batch_data['app']) . "' AND username='" . $DB->escape($subconf['username']) . "'");
+            if(!$app) {
+                throw new Exception('应用不存在');
+            }
+            
+            // 确保继承选项正确设置
+            $batch_data['inherit'] = isset($batch_data['inherit']) ? intval($batch_data['inherit']) : 0;
+            error_log("[" . date('Y-m-d H:i:s') . "] 批量创建账号: 应用={$app['appname']}, 继承={$batch_data['inherit']}\n", 3, "../logs/error.log");
+            
+            // 准备应用列表，如果启用继承，则包含所有继承应用
+            $apps_to_add = [$app];
+            
+            // 如果启用了继承且是主应用
+            if(isset($batch_data['inherit']) && $batch_data['inherit'] == 1) {
+                // 获取继承配置
+                $inherit_config = $DB->selectRow("SELECT inherit_enabled, inherit_groups FROM sub_admin WHERE username='" . $DB->escape($subconf['username']) . "'");
+                
+                if($inherit_config && $inherit_config['inherit_enabled']) {
+                    // 解码继承组配置
+                    $inherit_groups = null;
+                    
+                    // 记录原始数据用于调试
+                    error_log("[" . date('Y-m-d H:i:s') . "] 原始继承组配置: " . $inherit_config['inherit_groups'] . "\n", 3, "../logs/error.log");
+                    
+                    // 尝试解析方式1：直接JSON解析
+                    try {
+                        $inherit_groups = json_decode($inherit_config['inherit_groups'], true);
+                        if($inherit_groups === null) {
+                            throw new Exception("直接解析失败: " . json_last_error_msg());
+                        }
+                        error_log("[" . date('Y-m-d H:i:s') . "] 直接JSON解析成功\n", 3, "../logs/error.log");
+                    } catch (Exception $e) {
+                        error_log("[" . date('Y-m-d H:i:s') . "] 直接解析继承组配置失败: " . $e->getMessage() . "\n", 3, "../logs/error.log");
+                        
+                        // 尝试解析方式2：HTML实体解码
+                        try {
+                            $decoded_str = html_entity_decode($inherit_config['inherit_groups'], ENT_QUOTES | ENT_HTML5);
+                            $inherit_groups = json_decode($decoded_str, true);
+                            if($inherit_groups === null) {
+                                throw new Exception("HTML解码后解析失败: " . json_last_error_msg());
+                            }
+                            error_log("[" . date('Y-m-d H:i:s') . "] HTML解码后解析成功\n", 3, "../logs/error.log");
+                        } catch (Exception $e) {
+                            error_log("[" . date('Y-m-d H:i:s') . "] HTML解码后解析继承组配置失败: " . $e->getMessage() . "\n", 3, "../logs/error.log");
+                            
+                            // 尝试解析方式3：修复常见HTML实体编码问题
+                            try {
+                                $fixed_str = str_replace('&amp;quot;', '"', $decoded_str ?? $inherit_config['inherit_groups']);
+                                $fixed_str = str_replace('&quot;', '"', $fixed_str);
+                                $fixed_str = str_replace('&amp;', '&', $fixed_str);
+                                
+                                error_log("[" . date('Y-m-d H:i:s') . "] 尝试修复后的字符串: " . $fixed_str . "\n", 3, "../logs/error.log");
+                                
+                                $inherit_groups = json_decode($fixed_str, true);
+                                if($inherit_groups === null) {
+                                    throw new Exception("修复后仍解析失败: " . json_last_error_msg());
+                                }
+                                error_log("[" . date('Y-m-d H:i:s') . "] 修复后解析成功\n", 3, "../logs/error.log");
+                            } catch (Exception $e) {
+                                error_log("[" . date('Y-m-d H:i:s') . "] 修复后仍无法解析继承组配置: " . $e->getMessage() . "\n", 3, "../logs/error.log");
+                            }
+                        }
+                    }
+                    
+                    // 确保继承组有效并包含分组
+                    if($inherit_groups && isset($inherit_groups['groups'])) {
+                        $found_inherit = false;
+                        foreach($inherit_groups['groups'] as $group) {
+                            // 记录日志
+                            $group_id = isset($group['id']) ? $group['id'] : 'unknown';
+                            $main_apps = isset($group['main_apps']) && is_array($group['main_apps']) ? implode(',', $group['main_apps']) : 'none';
+                            $inherit_apps = isset($group['inherit_apps']) && is_array($group['inherit_apps']) ? implode(',', $group['inherit_apps']) : 'none';
+                            error_log("[" . date('Y-m-d H:i:s') . "] 检查继承组: ID={$group_id}, 主应用={$main_apps}, 继承应用={$inherit_apps}\n", 3, "../logs/error.log");
+                            
+                            // 检查当前应用是否为主应用
+                            if(isset($group['main_apps']) && is_array($group['main_apps']) && in_array($batch_data['app'], $group['main_apps'])) {
+                                error_log("[" . date('Y-m-d H:i:s') . "] 匹配到主应用: {$batch_data['app']}\n", 3, "../logs/error.log");
+                                $found_inherit = true;
+                                
+                                // 获取该组下所有继承应用的信息
+                                if(!empty($group['inherit_apps']) && is_array($group['inherit_apps'])) {
+                                    if(count($group['inherit_apps']) > 0) {
+                                        $inherit_apps_str = "'" . implode("','", array_map(function($app) use ($DB) {
+                                            return $DB->escape($app);
+                                        }, $group['inherit_apps'])) . "'";
+                                        
+                                        $inherit_apps = $DB->select("SELECT * FROM application WHERE appcode IN ($inherit_apps_str) AND username='" . $DB->escape($subconf['username']) . "'");
+                                        error_log("[" . date('Y-m-d H:i:s') . "] 查询继承应用: SQL=SELECT * FROM application WHERE appcode IN ($inherit_apps_str) AND username='{$subconf['username']}'\n", 3, "../logs/error.log");
+                                        
+                                        if($inherit_apps) {
+                                            error_log("[" . date('Y-m-d H:i:s') . "] 找到 " . count($inherit_apps) . " 个继承应用\n", 3, "../logs/error.log");
+                                            $apps_to_add = array_merge($apps_to_add, $inherit_apps);
+                                        } else {
+                                            error_log("[" . date('Y-m-d H:i:s') . "] 未找到继承应用\n", 3, "../logs/error.log");
+                                        }
+                                    } else {
+                                        error_log("[" . date('Y-m-d H:i:s') . "] 继承应用列表为空\n", 3, "../logs/error.log");
+                                    }
+                                } else {
+                                    error_log("[" . date('Y-m-d H:i:s') . "] 无效的继承应用配置\n", 3, "../logs/error.log");
+                                }
+                            }
+                        }
+                        
+                        if(!$found_inherit) {
+                            error_log("[" . date('Y-m-d H:i:s') . "] 未找到应用 {$batch_data['app']} 的继承配置\n", 3, "../logs/error.log");
+                        }
+                    } else {
+                        error_log("[" . date('Y-m-d H:i:s') . "] 继承组配置无效: " . print_r($inherit_groups, true) . "\n", 3, "../logs/error.log");
+                    }
+                } else {
+                    error_log("[" . date('Y-m-d H:i:s') . "] 继承功能未启用或配置不存在\n", 3, "../logs/error.log");
+                }
+            }
+            
+            // 计算本批次的范围
+            $end_index = min($start_index + $batch_size, intval($batch_data['count']));
+            $current_batch_size = $end_index - $start_index;
+            
+            // 生成账号函数
+            function generateRandomString($length, $type = 'random') {
+                if($type == 'random') {
+                    $characters = '0123456789abcdefghijklmnopqrstuvwxyz';
+                } else {
+                    $characters = '0123456789';
+                }
+                $charactersLength = strlen($characters);
+                $randomString = '';
+                for ($i = 0; $i < $length; $i++) {
+                    $randomString .= $characters[rand(0, $charactersLength - 1)];
+                }
+                return $randomString;
+            }
+            
+            // 计算过期时间
+            $expire_date = '';
+            if($batch_data['expire'] == '-1') {
+                // 自定义到期日期
+                if(empty($batch_data['custom_date'])) {
+                    throw new Exception('自定义到期日期为空');
+                }
+                $expire_date = $batch_data['custom_date'] . ' 23:59:59';
+            } else {
+                // 按天数计算
+                $expire_days = intval($batch_data['expire']);
+                $expire_date = date('Y-m-d H:i:s', strtotime("+{$expire_days} days"));
+            }
+            
+            // 开始创建账号
+            $accounts = [];
+            $total_created = 0;
+            $total_failed = 0;
+            
+            for($i = $start_index; $i < $end_index; $i++) {
+                // 生成用户名
+                $username = '';
+                $prefix = isset($batch_data['prefix']) ? $batch_data['prefix'] : '';
+                
+                if($batch_data['user_type'] == 'random') {
+                    $username = $prefix . generateRandomString(intval($batch_data['user_length']));
+                } else {
+                    $username = $prefix . generateRandomString(intval($batch_data['user_length']), 'number');
+                }
+                
+                // 生成密码
+                $password = '';
+                if($batch_data['pwd_type'] == 'same') {
+                    $password = $batch_data['same_pwd'];
+                } else if($batch_data['pwd_type'] == 'random') {
+                    $password = generateRandomString(intval($batch_data['pwd_length']));
+                } else {
+                    $password = generateRandomString(intval($batch_data['pwd_length']), 'number');
+                }
+                
+                // 创建账号
+                $account_status = true;
+                $failed_apps = [];
+                
+                foreach($apps_to_add as $current_app) {
+                    $app_server = $DB->selectRow("SELECT * FROM server_list WHERE ip='" . $DB->escape($current_app['serverip']) . "'");
+                    if(!$app_server) {
+                        $account_status = false;
+                        $failed_apps[] = $current_app['appname'] . '(服务器不存在)';
+                        continue;
+                    }
+                    
+                    // 调用添加用户API
+                    $result = AddUser(
+                        $app_server['ip'],
+                        $app_server['password'],
+                        $app_server['cport'],
+                        [
+                            'user' => $username,
+                            'pwd' => $password,
+                            'expire' => '-1', // 使用自定义日期模式
+                            'use_date' => $expire_date, // 提供具体的日期时间
+                            'connection' => '-1',
+                            'bandwidthup' => '-1',
+                            'bandwidthdown' => '-1'
+                        ]
+                    );
+                    
+                    if($result && isset($result['code']) && $result['code'] == 1) {
+                        error_log("[" . date('Y-m-d H:i:s') . "] 成功为应用 {$current_app['appname']} 创建账号: {$username}\n", 3, "../logs/error.log");
+                    } else {
+                        $account_status = false;
+                        $error_msg = isset($result['msg']) ? $result['msg'] : '未知错误';
+                        $failed_apps[] = $current_app['appname'] . '(' . $error_msg . ')';
+                        error_log("[" . date('Y-m-d H:i:s') . "] 创建账号失败，应用={$current_app['appname']}, 用户名={$username}, 错误: {$error_msg}\n", 3, "../logs/error.log");
+                    }
+                }
+                
+                // 添加到账号列表
+                $accounts[] = [
+                    'user' => $username,
+                    'pwd' => $password,
+                    'expire' => $expire_date,
+                    'status' => $account_status,
+                    'failed_apps' => $failed_apps
+                ];
+                
+                if($account_status) {
+                    $total_created++;
+                } else {
+                    $total_failed++;
+                }
+            }
+            
+            // 准备返回结果
+            $has_more = $end_index < intval($batch_data['count']);
+            $response = [
+                'code' => 1,
+                'msg' => '处理完成',
+                'accounts' => $accounts,
+                'details' => [
+                    'current_batch' => [
+                        'start' => $start_index,
+                        'end' => $end_index - 1,
+                        'size' => $current_batch_size
+                    ],
+                    'total' => intval($batch_data['count']),
+                    'total_processed' => $end_index,
+                    'has_more' => $has_more,
+                    'next_offset' => $end_index,
+                    'created' => $total_created,
+                    'failed' => $total_failed
+                ]
+            ];
+            
+            // 记录日志
+            WriteLog("批量创建账号", "批量创建账号，成功: {$total_created}, 失败: {$total_failed}", $subconf['username'], $DB);
+            
+            exit(json_encode($response, JSON_UNESCAPED_UNICODE));
+        } catch (Exception $e) {
+            error_log("[" . date('Y-m-d H:i:s') . "] 批量创建账号出错: " . $e->getMessage() . "\n", 3, "../logs/error.log");
+            WriteLog("批量创建账号错误", "批量创建账号失败，错误: " . $e->getMessage(), $subconf['username'], $DB);
+            exit(json_encode(['code' => 0, 'msg' => '操作失败：' . $e->getMessage()]));
+        }
+        break;
+
     default:
         exit(json_encode(["code"=>-4,"msg"=>"No Act"]));
         break;

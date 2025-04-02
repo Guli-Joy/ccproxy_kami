@@ -324,84 +324,66 @@ function WriteLog($operation, $msg, $operationer, $DB)
     $exec = $DB->insert('log', $arr);
 }
 /**
- * @description: 
- * @param {*} $adminpassword 
- * @param {*} $adminport
- * @param {*} $proxyaddress
- * @param {*} $user
- * @param {*} $password
- * @param {*} $day
- * @param {*} $userenabled 禁用账号 默认不禁用
- * @return {*}
- * @use: 
+ * @description: 更新用户信息
  */
 function UserUpdate($adminpassword, $adminport, $proxyaddress, $user, $password, $day,$connection2,$bandwidthup,$bandwidthdown, $userenable="0",$newuser="")
 {
-    if (!CheckStrChinese($user)) {
-        return ["code" => "-1", "msg"=>"用户名不合法", "icon" => "5"];
-    } 
-    if (strlen($user)<5) {
-        return ["code" => "-1", "msg"=>"用户名长度不合法", "icon" => "5"];
-    } 
-    if($password !== '' && !CheckStrPwd($password)){
-        return ["code" => "-1", "msg"=>"密码不合法", "icon" => "5"];
-    }
     $ser = queryuserall($adminpassword, $adminport, $proxyaddress);
     $date = userquery($user, $ser);
-    //print_r($date);
+    
     if (is_null($date)&&(empty($date))) {
         return ["code" => "-1", "msg"=>"用户名不存在", "icon" => "5"];
-    } else {
-        $username = $user;
-        $connection = $connection2;
-        $bandwidth = $bandwidthup.'/'.$bandwidthdown;
-        
-        // 分割传入的日期时间
-        $end_date = explode(" ", $day);
-        if(count($end_date) != 2) {
-            return ["code" => "-1", "msg"=>"日期时间格式错误", "icon" => "5"];
-        }
-        $disabledate = $end_date[0];
-        $disabletime = $end_date[1];
-
-        $fp = fsockopen($proxyaddress, $adminport, $errno, $errstr, 3);
-        if (!$fp) {
-            return ["code" => "-1", "msg"=>"无法连接到CCProxy", "icon" => "5"];
-        } else {
-            $url_ = "/account";
-            $url = "edit=1" . "&";
-            $url = $url . "autodisable=1" . "&";
-            $url = $url . "usepassword=1" . "&";
-            $url = $url . "enablesocks=1" . "&";
-            $url = $url . "enablewww=0" . "&";
-            $url = $url . "enabletelnet=0" . "&";
-            $url = $url . "enabledial=0" . "&";
-            $url = $url . "enableftp=0" . "&";
-            $url = $url . "enableothers=0" . "&";
-            $url = $url . "enablemail=0" . "&";
-            $url = $url . "username=" . (empty($newuser)?$username:$newuser) . "&";
-            $url = $password == "" ? $url : $url . "password=" . $password . "&";
-            $url = $url . "connection=" . $connection . "&";
-            $url = $url . "bandwidth=" . $bandwidth . "&";
-            $url = $url . "disabledate=" . $disabledate . "&";
-            $url = $url . "disabletime=" . $disabletime . "&";
-            $url = $url . "bandwidthquota=4560" . "&";
-            if($userenable==0){
-                $url = $url . "enable=1" . "&";
-            }
-            $url = $url . "userid=" . $username;
-            
-            $len = "Content-Length: " . strlen($url);
-            $auth = "Authorization: Basic " . base64_encode("admin:" . $adminpassword);
-            $msg = "POST " . $url_ . " HTTP/1.1\r\nHost: " . $proxyaddress . "\r\n" . $auth . "\r\n" . $len . "\r\n" . "\r\n" . $url;
-            fputs($fp, $msg);
-            while (!feof($fp)) {
-                $s = fgets($fp, 4096);
-            }
-            fclose($fp);
-            return ["code" => "1", "msg"=>"编辑成功", "icon" => "1"];
-        }
     }
+    
+    $username = $user;
+    $connection = $connection2;
+    $bandwidth = $bandwidthup.'/'.$bandwidthdown;
+    
+    // 分割传入的日期时间
+    $end_date = explode(" ", $day);
+    if(count($end_date) != 2) {
+        return ["code" => "-1", "msg"=>"日期时间格式错误", "icon" => "5"];
+    }
+    $disabledate = $end_date[0];
+    $disabletime = $end_date[1];
+
+    $fp = fsockopen($proxyaddress, $adminport, $errno, $errstr, 3);
+    if (!$fp) {
+        return ["code" => "-1", "msg"=>"无法连接到CCProxy", "icon" => "5"];
+    }
+    
+    $url_ = "/account";
+    $url = "edit=1" . "&";
+    $url = $url . "autodisable=1" . "&";
+    $url = $url . "usepassword=1" . "&";
+    $url = $url . "enablesocks=1" . "&";
+    $url = $url . "enablewww=0" . "&";
+    $url = $url . "enabletelnet=0" . "&";
+    $url = $url . "enabledial=0" . "&";
+    $url = $url . "enableftp=0" . "&";
+    $url = $url . "enableothers=0" . "&";
+    $url = $url . "enablemail=0" . "&";
+    $url = $url . "username=" . (empty($newuser)?$username:$newuser) . "&";
+    $url = $password == "" ? $url : $url . "password=" . $password . "&";
+    $url = $url . "connection=" . $connection . "&";
+    $url = $url . "bandwidth=" . $bandwidth . "&";
+    $url = $url . "disabledate=" . $disabledate . "&";
+    $url = $url . "disabletime=" . $disabletime . "&";
+    $url = $url . "bandwidthquota=4560" . "&";
+    if($userenable==0){
+        $url = $url . "enable=1" . "&";
+    }
+    $url = $url . "userid=" . $username;
+    
+    $len = "Content-Length: " . strlen($url);
+    $auth = "Authorization: Basic " . base64_encode("admin:" . $adminpassword);
+    $msg = "POST " . $url_ . " HTTP/1.1\r\nHost: " . $proxyaddress . "\r\n" . $auth . "\r\n" . $len . "\r\n" . "\r\n" . $url;
+    fputs($fp, $msg);
+    while (!feof($fp)) {
+        $s = fgets($fp, 4096);
+    }
+    fclose($fp);
+    return ["code" => "1", "msg"=>"编辑成功", "icon" => "1"];
 }
 /**
  * @description: 验证用户名是否合法（只允许字母、数字和下划线）
@@ -562,15 +544,6 @@ try {
 function AddUser($proxyaddress,$admin_password,$admin_port,$userdata)
 {
   try {
-    if (!CheckStrChinese($userdata["user"])) {
-        return ["code" => "-1", "msg"=>"用户名不合法", "icon" => "5"];
-    } 
-    if (strlen($userdata["user"])<5) {
-        return ["code" => "-1", "msg"=>"用户名长度不合法", "icon" => "5"];
-    } 
-    if($userdata["pwd"] !== '' && !CheckStrPwd($userdata["pwd"])){
-        return ["code" => "-1", "msg"=>"密码不合法", "icon" => "5"];
-    }
     $user=queryuserall($admin_password,$admin_port,$proxyaddress);
     if(!existsuser($userdata["user"],$user)){
         $json=[
@@ -580,89 +553,84 @@ function AddUser($proxyaddress,$admin_password,$admin_port,$userdata)
         ];
         return $json;
     }
-        // $username = $_POST["user"];
-        // $password = $_POST["pwd"];
-        $ipaddress = "";
-        $macaddress = "";
-        $connection = "-1";
-        $bandwidth = "-1";
-        $date=date("Y-m-d H:i:s");
-        if(isset($userdata["expire"]) && $userdata["expire"] == "-1") {
-            // 自定义时间
-            if(empty($userdata["use_date"])) {
-                return ["code" => "-1", "msg"=>"自定义时间不能为空", "icon" => "5"];
-            }
-            // 确保日期格式正确
-            if(!is_Date($userdata["use_date"])) {
-                $enddate = date('Y-m-d H:i:s', strtotime($userdata["use_date"] . " 23:59:59"));
-            } else {
-                $enddate = $userdata["use_date"];
-            }
-        } else if(isset($userdata["expire"]) && is_numeric($userdata["expire"]) && $userdata["expire"] > 0) {
-            // 固定天数
-            $days = floatval($userdata["expire"]);
-            $totalSeconds = round($days * 24 * 3600);
-            $enddate = date('Y-m-d H:i:s', strtotime("+{$totalSeconds} seconds"));
-        } else if(isset($userdata["expire"]) && !empty($userdata["expire"])) {
-            // 直接使用传入的expire值(用于支付接口等场景)
-            $enddate = $userdata["expire"];
-        } else {
-            return ["code" => "-1", "msg"=>"无效的到期时间设置", "icon" => "5"];
+    
+    $ipaddress = "";
+    $macaddress = "";
+    $connection = "-1";
+    $bandwidth = "-1";
+    $date=date("Y-m-d H:i:s");
+    if(isset($userdata["expire"]) && $userdata["expire"] == "-1") {
+        // 自定义时间
+        if(empty($userdata["use_date"])) {
+            return ["code" => "-1", "msg"=>"自定义时间不能为空", "icon" => "5"];
         }
+        // 确保日期格式正确
+        if(!is_Date($userdata["use_date"])) {
+            $enddate = date('Y-m-d H:i:s', strtotime($userdata["use_date"] . " 23:59:59"));
+        } else {
+            $enddate = $userdata["use_date"];
+        }
+    } else if(isset($userdata["expire"]) && is_numeric($userdata["expire"]) && $userdata["expire"] > 0) {
+        // 固定天数
+        $days = floatval($userdata["expire"]);
+        $totalSeconds = round($days * 24 * 3600);
+        $enddate = date('Y-m-d H:i:s', strtotime("+{$totalSeconds} seconds"));
+    } else if(isset($userdata["expire"]) && !empty($userdata["expire"])) {
+        // 直接使用传入的expire值(用于支付接口等场景)
+        $enddate = $userdata["expire"];
+    } else {
+        return ["code" => "-1", "msg"=>"无效的到期时间设置", "icon" => "5"];
+    }
        
-        $end_date = explode(" ", $enddate);
-        $disabledate = $end_date[0];
-        $disabletime = $end_date[1];
-        $fp = fsockopen($proxyaddress, $admin_port, $errno, $errstr, 3);
-        if (!$fp) {
-            return ["code" => "-1", "msg"=>"无法连接到CCProxy", "icon" => "5"];
-            //return false;
-        } else {
-            $url_ = "/account";
-            $url = "add=1" . "&";
-            $url = $url . "autodisable=1" . "&";
-            $url = $url . "enable=1" . "&";
-            if($admin_password!="") {
-                $url = $url . "usepassword=1" . "&";
-            }
-            if($ipaddress!=""){
-                $url = $url . "usepassword=1" . "&";
-            }
-            if($macaddress!=""){
-                $url = $url . "usemacaddress=1" . "&";
-            }
-            $url = $url . "enablesocks=1" . "&";
-            $url = $url . "enablewww=0" . "&";
-            $url = $url . "enabletelnet=0" . "&";
-            $url = $url . "enabledial=0" . "&";
-            $url = $url . "enableftp=0" . "&";
-            $url = $url . "enableothers=0" . "&";
-            $url = $url . "enablemail=0" . "&";
-            $url = $url . "username=" . $userdata["user"] . "&";
-            $url = $url . "password=" . $userdata["pwd"] . "&";
-            $url = $url . "ipaddress=" . $ipaddress . "&";
-            $url = $url . "macaddress=" . $macaddress . "&";
-            $url = $url . "connection=" . $connection . "&";
-            $url = $url . "bandwidth=" . $bandwidth . "&";
-            $url = $url . "disabledate=" . $disabledate . "&";
-            $url = $url . "disabletime=" . $disabletime . "&";
-            $url = $url . "userid=-1";
-            $len = "Content-Length: " . strlen($url);
-            $auth = "Authorization: Basic " . base64_encode("admin:" . $admin_password);
-            $msg = "POST " . $url_ . " HTTP/1.0\r\nHost: " . $proxyaddress . "\r\n" . $auth . "\r\n" . $len . "\r\n" . "\r\n" . $url;
-            fputs($fp, $msg);
-            while (!feof($fp)) {
-                $s = fgets($fp, 4096);
-            }
-            fclose($fp);
-            return ["code" => "1", "msg"=>"注册用户成功", "icon" => "1"];
-        }
+    $end_date = explode(" ", $enddate);
+    $disabledate = $end_date[0];
+    $disabletime = $end_date[1];
+    $fp = fsockopen($proxyaddress, $admin_port, $errno, $errstr, 3);
+    if (!$fp) {
+        return ["code" => "-1", "msg"=>"无法连接到CCProxy", "icon" => "5"];
+    }
+    
+    $url_ = "/account";
+    $url = "add=1" . "&";
+    $url = $url . "autodisable=1" . "&";
+    $url = $url . "enable=1" . "&";
+    if($admin_password!="") {
+        $url = $url . "usepassword=1" . "&";
+    }
+    if($ipaddress!=""){
+        $url = $url . "usepassword=1" . "&";
+    }
+    if($macaddress!=""){
+        $url = $url . "usemacaddress=1" . "&";
+    }
+    $url = $url . "enablesocks=1" . "&";
+    $url = $url . "enablewww=0" . "&";
+    $url = $url . "enabletelnet=0" . "&";
+    $url = $url . "enabledial=0" . "&";
+    $url = $url . "enableftp=0" . "&";
+    $url = $url . "enableothers=0" . "&";
+    $url = $url . "enablemail=0" . "&";
+    $url = $url . "username=" . $userdata["user"] . "&";
+    $url = $url . "password=" . $userdata["pwd"] . "&";
+    $url = $url . "ipaddress=" . $ipaddress . "&";
+    $url = $url . "macaddress=" . $macaddress . "&";
+    $url = $url . "connection=" . $connection . "&";
+    $url = $url . "bandwidth=" . $bandwidth . "&";
+    $url = $url . "disabledate=" . $disabledate . "&";
+    $url = $url . "disabletime=" . $disabletime . "&";
+    $url = $url . "userid=-1";
+    $len = "Content-Length: " . strlen($url);
+    $auth = "Authorization: Basic " . base64_encode("admin:" . $admin_password);
+    $msg = "POST " . $url_ . " HTTP/1.0\r\nHost: " . $proxyaddress . "\r\n" . $auth . "\r\n" . $len . "\r\n" . "\r\n" . $url;
+    fputs($fp, $msg);
+    while (!feof($fp)) {
+        $s = fgets($fp, 4096);
+    }
+    fclose($fp);
+    return ["code" => "1", "msg"=>"注册用户成功", "icon" => "1"];
   } catch (Exception $th) {
-    //yield null;
-    //throw $th;
     return ["code" => "-1", "msg"=>"无法连接到CCProxy", "icon" => "5"];
   }
-    
 }
 /**
  * @description: 账号存在 false 不存在为 true
